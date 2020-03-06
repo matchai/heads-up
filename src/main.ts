@@ -29,7 +29,7 @@ async function main(): Promise<void> {
     branch: 'gh-pages',
     folder: 'build',
     repositoryName: process.env.GITHUB_REPOSITORY,
-    workspace: process.env.GITHUB_WORKSPACE
+    workspace: process.env.GITHUB_WORKSPACE || ''
   })
 }
 

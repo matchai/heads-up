@@ -2,9 +2,12 @@ name: 'Your name here'
 description: 'Provide a description here'
 author: 'Your name or organization here'
 inputs:
-  myInput:              # change this
-    description: 'input description here'
-    default: 'default value if applicable'
+  url:
+    required: true
+    description: 'the url to be tested'
+  access_token:
+    required: true
+    description: 'a github access token'
 runs:
   using: 'node12'
   main: 'dist/index.js'
