@@ -23,15 +23,16 @@ async function main(): Promise<void> {
   const timings: Timings = response.timings.phases
   delete timings.total
 
-  let actionConfig = generateActionConfig()
-  core.debug(JSON.stringify(actionConfig))
-  await init(actionConfig)
-  await exec('git checkout --progress --force gh-pages')
+  await exec(`git init`)
+  await exec(`git config user.name "heads-up"`)
+  await exec(`git config user.email "github@users.noreply.github.com"`)
+  await exec(`git fetch`)
+  await exec(`git checkout --progress --force gh-pages`)
 
   await writeTimings(timings)
   core.debug(`Timings extracted`)
 
-  actionConfig = generateActionConfig(`✅ ${url} – ${timings.total}ms`)
+  const actionConfig = generateActionConfig(`✅ ${url} – ${timings.total}ms`)
   deploy(actionConfig)
 }
 

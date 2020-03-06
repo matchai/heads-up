@@ -5781,6 +5781,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
@@ -5788,11 +5791,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     result["default"] = mod;
     return result;
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const github_pages_deploy_action_1 = __importStar(__webpack_require__(922));
+const github_pages_deploy_action_1 = __importDefault(__webpack_require__(922));
 const got_1 = __importDefault(__webpack_require__(77));
 const core = __importStar(__webpack_require__(470));
 const exec_1 = __webpack_require__(986);
@@ -5804,13 +5804,14 @@ function main() {
         core.debug(`Request succesfully made: ${url}`);
         const timings = response.timings.phases;
         delete timings.total;
-        let actionConfig = generateActionConfig();
-        core.debug(JSON.stringify(actionConfig));
-        yield github_pages_deploy_action_1.init(actionConfig);
-        yield exec_1.exec('git checkout --progress --force gh-pages');
+        yield exec_1.exec(`git init`);
+        yield exec_1.exec(`git config user.name "heads-up"`);
+        yield exec_1.exec(`git config user.email "github@users.noreply.github.com"`);
+        yield exec_1.exec(`git fetch`);
+        yield exec_1.exec(`git checkout --progress --force gh-pages`);
         yield write_1.writeTimings(timings);
         core.debug(`Timings extracted`);
-        actionConfig = generateActionConfig(`✅ ${url} – ${timings.total}ms`);
+        const actionConfig = generateActionConfig(`✅ ${url} – ${timings.total}ms`);
         github_pages_deploy_action_1.default(actionConfig);
     });
 }
