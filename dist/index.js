@@ -6976,7 +6976,7 @@ function loadData(dataPath) {
     });
 }
 function addTimingDataToJson(data, timings) {
-    const currentTime = Math.round(Date.now() / 1000);
+    const currentTime = Date.now();
     data.lastUpdate = currentTime;
     Object.entries(timings)
         .filter(([key, value]) => value !== undefined && key !== 'total')
@@ -32161,7 +32161,10 @@ exports.DEFAULT_INDEX_HTML = String.raw `<!DOCTYPE html>
               enabled: false
             }
           },
-          series: data.entries
+          series: data.entries,
+          xaxis: {
+            type: 'datetime'
+          }
         }
         const chart = new ApexCharts(main, options);
         chart.render();

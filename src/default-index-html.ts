@@ -100,7 +100,10 @@ export const DEFAULT_INDEX_HTML = String.raw`<!DOCTYPE html>
               enabled: false
             }
           },
-          series: data.entries
+          series: data.entries,
+          xaxis: {
+            type: 'datetime'
+          }
         }
         const chart = new ApexCharts(main, options);
         chart.render();
