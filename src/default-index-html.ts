@@ -95,7 +95,7 @@ export const DEFAULT_INDEX_HTML = String.raw`<!DOCTYPE html>
         const options = {
           chart: {
             type: 'area',
-            stacked: true
+            stacked: true,
             animations: {
               enabled: false
             }
