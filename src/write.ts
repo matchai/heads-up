@@ -2,6 +2,7 @@ import * as core from '@actions/core'
 import {promises as fs} from 'fs'
 import * as path from 'path'
 import {Timings} from './main'
+import {DEFAULT_INDEX_HTML} from './default-index-html'
 
 export interface DataJson {
   lastUpdate: number
@@ -58,8 +59,12 @@ async function storeDataJson(dataPath: string, data: DataJson): Promise<void> {
 export async function writeTimings(timings: Timings): Promise<void> {
   const buildPath = path.join(process.cwd(), 'build')
   const dataPath = path.join(buildPath, 'data.js')
+  await fs.mkdir(buildPath)
 
   const prevTimingData = await loadData(dataPath)
   const newTimingData = addTimingDataToJson(prevTimingData, timings)
   await storeDataJson(dataPath, newTimingData)
+
+  const htmlPath = path.join(buildPath, 'index.html')
+  await fs.writeFile(htmlPath, DEFAULT_INDEX_HTML)
 }
