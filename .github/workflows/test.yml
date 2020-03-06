@@ -2,7 +2,7 @@ name: "build-test"
 on:
   push:
   schedule:
-    - cron:  '*/5 * * * *'
+    - cron:  '*/1 * * * *'
 
 jobs:
   # build: # make sure build/ci work properly
