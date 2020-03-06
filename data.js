@@ -1,12 +1,12 @@
 window.TIMING_DATA = {
-  "lastUpdate": 1583521285936,
+  "lastUpdate": 1583525578972,
   "entries": [
     {
       "name": "wait",
       "data": [
         [
-          1583521285936,
-          2
+          1583525578972,
+          3
         ]
       ]
     },
@@ -14,8 +14,8 @@ window.TIMING_DATA = {
       "name": "dns",
       "data": [
         [
-          1583521285936,
-          2
+          1583525578972,
+          3
         ]
       ]
     },
@@ -23,8 +23,8 @@ window.TIMING_DATA = {
       "name": "tcp",
       "data": [
         [
-          1583521285936,
-          7
+          1583525578972,
+          6
         ]
       ]
     },
@@ -32,8 +32,8 @@ window.TIMING_DATA = {
       "name": "tls",
       "data": [
         [
-          1583521285936,
-          9
+          1583525578972,
+          10
         ]
       ]
     },
@@ -41,7 +41,7 @@ window.TIMING_DATA = {
       "name": "request",
       "data": [
         [
-          1583521285936,
+          1583525578972,
           0
         ]
       ]
@@ -50,8 +50,8 @@ window.TIMING_DATA = {
       "name": "firstByte",
       "data": [
         [
-          1583521285936,
-          10
+          1583525578972,
+          9
         ]
       ]
     },
@@ -59,17 +59,8 @@ window.TIMING_DATA = {
       "name": "download",
       "data": [
         [
-          1583521285936,
-          10
-        ]
-      ]
-    },
-    {
-      "name": "total",
-      "data": [
-        [
-          1583521285936,
-          40
+          1583525578972,
+          16
         ]
       ]
     }
