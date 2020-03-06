@@ -11,6 +11,7 @@ export interface DataJson {
   }[]
 }
 
+export const SCRIPT_PREFIX = 'window.TIMING_DATA = '
 const DEFAULT_DATA_JSON = {
   lastUpdate: 0,
   entries: []
@@ -18,8 +19,9 @@ const DEFAULT_DATA_JSON = {
 
 async function loadData(dataPath: string): Promise<DataJson> {
   try {
-    const fileContents = await fs.readFile(dataPath, 'utf8')
-    const parsed = JSON.parse(fileContents)
+    const script = await fs.readFile(dataPath, 'utf8')
+    const json = script.slice(SCRIPT_PREFIX.length)
+    const parsed = JSON.parse(json)
     core.debug(`Loaded JSON from ${dataPath}`)
     return parsed
   } catch (err) {
@@ -48,13 +50,14 @@ function addTimingDataToJson(data: DataJson, timings: Timings): DataJson {
 }
 
 async function storeDataJson(dataPath: string, data: DataJson): Promise<void> {
-  await fs.writeFile(dataPath, JSON.stringify(data), 'utf8')
+  const script = SCRIPT_PREFIX + JSON.stringify(data, null, 2)
+  await fs.writeFile(dataPath, script, 'utf8')
   core.debug(`Wrote a new ${dataPath} file`)
 }
 
 export async function writeTimings(timings: Timings): Promise<void> {
   const buildPath = path.join(process.cwd(), 'build')
-  const dataPath = path.join(buildPath, 'timings.json')
+  const dataPath = path.join(buildPath, 'data.js')
   await fs.mkdir(buildPath)
 
   const prevTimingData = await loadData(dataPath)

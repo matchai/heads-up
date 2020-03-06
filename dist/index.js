@@ -6943,6 +6943,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const fs_1 = __webpack_require__(747);
 const path = __importStar(__webpack_require__(622));
+exports.SCRIPT_PREFIX = 'window.TIMING_DATA = ';
 const DEFAULT_DATA_JSON = {
     lastUpdate: 0,
     entries: []
@@ -6950,8 +6951,9 @@ const DEFAULT_DATA_JSON = {
 function loadData(dataPath) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const fileContents = yield fs_1.promises.readFile(dataPath, 'utf8');
-            const parsed = JSON.parse(fileContents);
+            const script = yield fs_1.promises.readFile(dataPath, 'utf8');
+            const json = script.slice(exports.SCRIPT_PREFIX.length);
+            const parsed = JSON.parse(json);
             core.debug(`Loaded JSON from ${dataPath}`);
             return parsed;
         }
@@ -6980,14 +6982,15 @@ function addTimingDataToJson(data, timings) {
 }
 function storeDataJson(dataPath, data) {
     return __awaiter(this, void 0, void 0, function* () {
-        yield fs_1.promises.writeFile(dataPath, JSON.stringify(data), 'utf8');
+        const script = exports.SCRIPT_PREFIX + JSON.stringify(data, null, 2);
+        yield fs_1.promises.writeFile(dataPath, script, 'utf8');
         core.debug(`Wrote a new ${dataPath} file`);
     });
 }
 function writeTimings(timings) {
     return __awaiter(this, void 0, void 0, function* () {
         const buildPath = path.join(process.cwd(), 'build');
-        const dataPath = path.join(buildPath, 'timings.json');
+        const dataPath = path.join(buildPath, 'data.js');
         yield fs_1.promises.mkdir(buildPath);
         const prevTimingData = yield loadData(dataPath);
         const newTimingData = addTimingDataToJson(prevTimingData, timings);
