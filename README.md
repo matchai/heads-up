@@ -1,5 +1,4 @@
 <p align="center">
-  <img width="400" src="https://user-images.githubusercontent.com/4658208/60469862-2e40bf00-9c2c-11e9-87f7-afe164648de4.png">
   <h3 align="center">heads-up</h3>
   <p align="center">Uptime monitoring and alerts using GitHub Actions</p>
 </p>
@@ -20,7 +19,7 @@
   - [ ] Email alert
   - [ ] SMS alert
 - [ ] Status page
-  - [ ] On-page status updates via Dispatch
+  - [ ] On-page status updates via `repository_dispatch`
 - [ ] Update a gist with uptime metrics
 
 ## Setup
