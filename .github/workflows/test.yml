@@ -1,8 +1,7 @@
 name: "build-test"
 on:
-  push:
   schedule:
-    - cron:  '*/1 * * * *'
+    - cron: "* * * * *"
 
 jobs:
   # build: # make sure build/ci work properly
@@ -15,8 +14,8 @@ jobs:
   test: # make sure the action works on a clean machine without building
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - uses: ./
-      with: 
-        url: https://github.com
-        access_token: ${{ secrets.ACCESS_TOKEN }}
+      - uses: actions/checkout@v1
+      - uses: ./
+        with:
+          url: https://github.com
+          access_token: ${{ secrets.ACCESS_TOKEN }}
