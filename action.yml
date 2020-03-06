@@ -1,6 +1,6 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Heads Up!'
+description: 'Website uptime monitoring and alerting with GitHub Actions'
+author: 'Matan Kushner <hello@matchai.dev>'
 inputs:
   url:
     required: true

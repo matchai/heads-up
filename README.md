@@ -1,101 +1,42 @@
 <p align="center">
-  <a href="https://github.com/actions/typescript-action/actions"><img alt="typescript-action status" src="https://github.com/actions/typescript-action/workflows/build-test/badge.svg"></a>
+  <img width="400" src="https://user-images.githubusercontent.com/4658208/60469862-2e40bf00-9c2c-11e9-87f7-afe164648de4.png">
+  <h3 align="center">heads-up</h3>
+  <p align="center">Uptime monitoring and alerts using GitHub Actions</p>
 </p>
 
-# Create a JavaScript Action using TypeScript
+---
 
-Use this template to bootstrap the creation of a JavaScript action.:rocket:
+## Planned Features
 
-This template includes compilication support, tests, a validation workflow, publishing, and versioning guidance.  
+- [x] Website response time
+- [x] Statically generated dashboard
+  - [ ] Multiple endpoint dashboard
+  - [ ] Per-endpoint dashboard
+- [ ] Response time metrics
+  - [ ] Uptime % (24 hr, 1 week, 1 month, 1 year)
+  - [ ] Cumulative downtime duration
+- [ ] Downtime alerts
+  - [ ] GitHub notification
+  - [ ] Email alert
+  - [ ] SMS alert
+- [ ] Status page
+  - [ ] On-page status updates via Dispatch
+- [ ] Update a gist with uptime metrics
 
-If you are new, there's also a simpler introduction.  See the [Hello World JavaScript Action](https://github.com/actions/hello-world-javascript-action)
+## Setup
 
-## Create an action from this template
+### Prep work
 
-Click the `Use this Template` and provide the new repo details for your action
+1. Create a new public GitHub Gist (https://gist.github.com/)
+1. Create a token with the `repo` scope and copy it. (https://github.com/settings/tokens/new)
 
-## Code in Master
+### Project setup
 
-Install the dependencies  
-```bash
-$ npm install
-```
+1. Fork this repo
+1. Edit the [environment variable](https://github.com/matchai/waka-box/blob/master/.github/workflows/schedule.yml#L13-L15) in `.github/workflows/schedule.yml`:
 
-Build the typescript and package it for distribution
-```bash
-$ npm run build && npm run pack
-```
+   - **url:** The full URL to check for uptime
 
-Run the tests :heavy_check_mark:  
-```bash
-$ npm test
-
- PASS  ./index.test.js
-  ✓ throws invalid number (3ms)
-  ✓ wait 500 ms (504ms)
-  ✓ test runs (95ms)
-
-...
-```
-
-## Change action.yml
-
-The action.yml contains defines the inputs and output for your action.
-
-Update the action.yml with your name, description, inputs and outputs for your action.
-
-See the [documentation](https://help.github.com/en/articles/metadata-syntax-for-github-actions)
-
-## Change the Code
-
-Most toolkit and CI/CD operations involve async operations so the action is run in an async function.
-
-```javascript
-import * as core from '@actions/core';
-...
-
-async function run() {
-  try { 
-      ...
-  } 
-  catch (error) {
-    core.setFailed(error.message);
-  }
-}
-
-run()
-```
-
-See the [toolkit documentation](https://github.com/actions/toolkit/blob/master/README.md#packages) for the various packages.
-
-## Publish to a distribution branch
-
-Actions are run from GitHub repos so we will checkin the packed dist folder. 
-
-Then run [ncc](https://github.com/zeit/ncc) and push the results:
-```bash
-$ npm run pack
-$ git add dist
-$ git commit -a -m "prod dependencies"
-$ git push origin releases/v1
-```
-
-Your action is now published! :rocket: 
-
-See the [versioning documentation](https://github.com/actions/toolkit/blob/master/docs/action-versioning.md)
-
-## Validate
-
-You can now validate the action by referencing `./` in a workflow in your repo (see [test.yml](.github/workflows/test.yml)])
-
-```yaml
-uses: ./
-with:
-  milliseconds: 1000
-```
-
-See the [actions tab](https://github.com/actions/javascript-action/actions) for runs of this action! :rocket:
-
-## Usage:
-
-After testing you can [create a v1 tag](https://github.com/actions/toolkit/blob/master/docs/action-versioning.md) to reference the stable and latest V1 action
+1. Go to the repo **Settings > Secrets**
+1. Add the following environment variables:
+   - **access_token:** The GitHub token generated above.
