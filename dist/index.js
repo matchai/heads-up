@@ -7010,7 +7010,7 @@ function writeTimings(timings) {
         const newTimingData = addTimingDataToJson(prevTimingData, timings);
         yield storeDataJson(dataPath, newTimingData);
         const htmlPath = path.join(buildPath, 'index.html');
-        yield fs_1.promises.writeFile(htmlPath, default_index_html_1.DEFAULT_INDEX_HTML);
+        yield fs_1.promises.writeFile(htmlPath, default_index_html_1.DEFAULT_INDEX_HTML, { flag: 'w' });
     });
 }
 exports.writeTimings = writeTimings;
@@ -32183,7 +32183,10 @@ exports.DEFAULT_INDEX_HTML = String.raw `<!DOCTYPE html>
         const options = {
           chart: {
             type: 'area',
-            stacked: 'true'
+            stacked: true
+            animations: {
+              enabled: false
+            }
           },
           series: data.entries
         }

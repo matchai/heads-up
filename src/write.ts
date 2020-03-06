@@ -67,5 +67,5 @@ export async function writeTimings(timings: Timings): Promise<void> {
   await storeDataJson(dataPath, newTimingData)
 
   const htmlPath = path.join(buildPath, 'index.html')
-  await fs.writeFile(htmlPath, DEFAULT_INDEX_HTML)
+  await fs.writeFile(htmlPath, DEFAULT_INDEX_HTML, {flag: 'w'})
 }
