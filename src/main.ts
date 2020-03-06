@@ -1,6 +1,7 @@
-import deploy from 'github-pages-deploy-action'
+import deploy, {init} from 'github-pages-deploy-action'
 import got from 'got'
 import * as core from '@actions/core'
+import {exec} from '@actions/exec'
 import {writeTimings} from './write'
 
 export interface Timings {
@@ -20,10 +21,8 @@ async function main(): Promise<void> {
   core.debug(`Request succesfully made: ${url}`)
 
   const timings: Timings = response.timings.phases
-  await writeTimings(timings)
-  core.debug(`Timings extracted`)
 
-  deploy({
+  const actionConfig = {
     commitMessage: `✅ ${url} – ${timings.total}ms`,
     accessToken: core.getInput('access_token'),
     branch: 'gh-pages',
@@ -31,7 +30,14 @@ async function main(): Promise<void> {
     clean: true,
     repositoryName: process.env.GITHUB_REPOSITORY,
     workspace: process.env.GITHUB_WORKSPACE || ''
-  })
+  }
+  await init(actionConfig)
+  await exec('git checkout --progress --force gh-pages')
+
+  await writeTimings(timings)
+  core.debug(`Timings extracted`)
+
+  deploy(actionConfig)
 }
 
 main().catch(e => core.setFailed(e.message))
