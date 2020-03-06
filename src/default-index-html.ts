@@ -112,4 +112,4 @@ export const DEFAULT_INDEX_HTML = String.raw`<!DOCTYPE html>
     </script>
   </body>
 </html>
-`
+`;

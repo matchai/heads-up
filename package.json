@@ -1,29 +1,17 @@
 {
-  "name": "typescript-action",
+  "name": "heads-up",
   "version": "0.0.0",
   "private": true,
-  "description": "TypeScript template action",
+  "description": "✅🚨 Uptime monitoring and alerts using GitHub Actions",
   "main": "lib/main.js",
+  "license": "ISC",
   "scripts": {
     "build": "tsc",
     "format": "prettier --write **/*.ts",
-    "format-check": "prettier --check **/*.ts",
     "lint": "eslint src/**/*.ts",
     "pack": "ncc build",
-    "test": "jest",
-    "all": "npm run build && npm run format && npm run lint && npm run pack && npm test"
+    "test": "jest"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
-  },
-  "keywords": [
-    "actions",
-    "node",
-    "setup"
-  ],
-  "author": "YourNameOrOrganization",
-  "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.2.3",
     "github-pages-deploy-action": "^3.3.2",
