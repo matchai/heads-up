@@ -56,34 +56,8 @@ export const DEFAULT_INDEX_HTML = String.raw`<!DOCTYPE html>
         display: flex;
         align-items: center;
       }
-      .header-label {
-        margin-right: 4px;
-      }
-      .benchmark-set {
-        margin: 8px 0;
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-      }
-      .benchmark-title {
-        font-size: 3rem;
-        font-weight: 600;
-        word-break: break-word;
-        text-align: center;
-      }
-      .benchmark-graphs {
-        display: flex;
-        flex-direction: row;
-        justify-content: space-around;
-        align-items: center;
-        flex-wrap: wrap;
-        width: 100%;
-      }
-      .benchmark-chart {
-        max-width: 1000px;
-      }
     </style>
-    <title>Benchmarks</title>
+    <title>GitHub.com Uptime</title>
   </head>
   <body>
     <header id="header">
