@@ -6976,7 +6976,7 @@ function loadData(dataPath) {
     });
 }
 function addTimingDataToJson(data, timings) {
-    const currentTime = Date.now();
+    const currentTime = Math.round(Date.now() / 1000);
     data.lastUpdate = currentTime;
     Object.entries(timings)
         .filter(([key, value]) => value !== undefined && key !== 'total')
