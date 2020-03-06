@@ -37,7 +37,7 @@ function addTimingDataToJson(data: DataJson, timings: Timings): DataJson {
   const currentTime = Date.now()
   data.lastUpdate = currentTime
   Object.entries(timings)
-    .filter(([key, value]) => value !== undefined)
+    .filter(([key, value]) => value !== undefined && key !== 'total')
     .map(([key, value]) => {
       const newEntry: [number, number] = [currentTime, value]
       const existingIndex = data.entries.findIndex(entry => entry.name === key)

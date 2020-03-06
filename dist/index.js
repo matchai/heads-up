@@ -5802,13 +5802,12 @@ function main() {
         const url = core.getInput('url');
         const response = yield got_1.default(url);
         core.debug(`Request succesfully made: ${url}`);
-        const timings = response.timings.phases;
-        delete timings.total;
         yield exec_1.exec(`git init`);
         yield exec_1.exec(`git config user.name "heads-up"`);
         yield exec_1.exec(`git config user.email "github@users.noreply.github.com"`);
         yield exec_1.exec(`git fetch`);
         yield exec_1.exec(`git checkout --progress --force gh-pages`);
+        const timings = response.timings.phases;
         yield write_1.writeTimings(timings);
         core.debug(`Timings extracted`);
         const actionConfig = generateActionConfig(`✅ ${url} – ${timings.total}ms`);
@@ -6980,7 +6979,7 @@ function addTimingDataToJson(data, timings) {
     const currentTime = Date.now();
     data.lastUpdate = currentTime;
     Object.entries(timings)
-        .filter(([key, value]) => value !== undefined)
+        .filter(([key, value]) => value !== undefined && key !== 'total')
         .map(([key, value]) => {
         const newEntry = [currentTime, value];
         const existingIndex = data.entries.findIndex(entry => entry.name === key);

@@ -20,15 +20,13 @@ async function main(): Promise<void> {
   const response = await got(url)
   core.debug(`Request succesfully made: ${url}`)
 
-  const timings: Timings = response.timings.phases
-  delete timings.total
-
   await exec(`git init`)
   await exec(`git config user.name "heads-up"`)
   await exec(`git config user.email "github@users.noreply.github.com"`)
   await exec(`git fetch`)
   await exec(`git checkout --progress --force gh-pages`)
 
+  const timings: Timings = response.timings.phases
   await writeTimings(timings)
   core.debug(`Timings extracted`)
 
