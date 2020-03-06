@@ -1,7 +1,7 @@
 name: Check uptime of website
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "* * * * *"
 
 jobs:
   uptime:
