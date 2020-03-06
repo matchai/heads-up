@@ -1,4 +1,4 @@
-name: 'Heads Up!'
+name: 'Heads Up – Uptime monitoring & alerting'
 description: 'Website uptime monitoring and alerting with GitHub Actions'
 author: 'Matan Kushner <hello@matchai.dev>'
 inputs:
