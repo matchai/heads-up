@@ -28,6 +28,7 @@ async function main(): Promise<void> {
     accessToken: core.getInput('access_token'),
     branch: 'gh-pages',
     folder: 'build',
+    clean: true,
     repositoryName: process.env.GITHUB_REPOSITORY,
     workspace: process.env.GITHUB_WORKSPACE || ''
   })

@@ -20,5 +20,5 @@ jobs:
     - uses: actions/checkout@v1
     - uses: ./
       with: 
-        url: https://github.com/
+        url: https://github.com
         access_token: ${{ secrets.ACCESS_TOKEN }}
