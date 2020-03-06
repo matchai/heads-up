@@ -6992,7 +6992,6 @@ function writeTimings(timings) {
     return __awaiter(this, void 0, void 0, function* () {
         const buildPath = path.join(process.cwd(), 'build');
         const dataPath = path.join(buildPath, 'data.js');
-        yield fs_1.promises.mkdir(buildPath);
         const prevTimingData = yield loadData(dataPath);
         const newTimingData = addTimingDataToJson(prevTimingData, timings);
         yield storeDataJson(dataPath, newTimingData);

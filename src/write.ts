@@ -58,7 +58,6 @@ async function storeDataJson(dataPath: string, data: DataJson): Promise<void> {
 export async function writeTimings(timings: Timings): Promise<void> {
   const buildPath = path.join(process.cwd(), 'build')
   const dataPath = path.join(buildPath, 'data.js')
-  await fs.mkdir(buildPath)
 
   const prevTimingData = await loadData(dataPath)
   const newTimingData = addTimingDataToJson(prevTimingData, timings)
