@@ -5803,7 +5803,9 @@ function main() {
         const response = yield got_1.default(url);
         core.debug(`Request succesfully made: ${url}`);
         const timings = response.timings.phases;
+        delete timings.total;
         let actionConfig = generateActionConfig();
+        core.debug(JSON.stringify(actionConfig));
         yield github_pages_deploy_action_1.init(actionConfig);
         yield exec_1.exec('git checkout --progress --force gh-pages');
         yield write_1.writeTimings(timings);

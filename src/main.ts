@@ -21,7 +21,10 @@ async function main(): Promise<void> {
   core.debug(`Request succesfully made: ${url}`)
 
   const timings: Timings = response.timings.phases
+  delete timings.total
+
   let actionConfig = generateActionConfig()
+  core.debug(JSON.stringify(actionConfig))
   await init(actionConfig)
   await exec('git checkout --progress --force gh-pages')
 
