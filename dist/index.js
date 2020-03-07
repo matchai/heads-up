@@ -59,7 +59,7 @@ const CORE_PLUGINS = [
   __webpack_require__(190),
   __webpack_require__(19), // deprecated: remove in v17
   requestLog,
-  __webpack_require__(148),
+  __webpack_require__(961),
   restEndpointMethods,
   __webpack_require__(430),
 
@@ -399,7 +399,7 @@ function copyFile(srcFile, destFile, force) {
 
 const os = __webpack_require__(87);
 const macosRelease = __webpack_require__(118);
-const winRelease = __webpack_require__(49);
+const winRelease = __webpack_require__(494);
 
 const osName = (platform, release) => {
 	if (!platform && release) {
@@ -449,7 +449,7 @@ module.exports = osName;
 /***/ 9:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-var once = __webpack_require__(969);
+var once = __webpack_require__(49);
 
 var noop = function() {};
 
@@ -588,9 +588,68 @@ function wrappy (fn, cb) {
 /***/ }),
 
 /***/ 16:
-/***/ (function(module) {
+/***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = require("tls");
+"use strict";
+
+const pump = __webpack_require__(453);
+const bufferStream = __webpack_require__(375);
+
+class MaxBufferError extends Error {
+	constructor() {
+		super('maxBuffer exceeded');
+		this.name = 'MaxBufferError';
+	}
+}
+
+async function getStream(inputStream, options) {
+	if (!inputStream) {
+		return Promise.reject(new Error('Expected a stream'));
+	}
+
+	options = {
+		maxBuffer: Infinity,
+		...options
+	};
+
+	const {maxBuffer} = options;
+
+	let stream;
+	await new Promise((resolve, reject) => {
+		const rejectPromise = error => {
+			if (error) { // A null check
+				error.bufferedData = stream.getBufferedValue();
+			}
+
+			reject(error);
+		};
+
+		stream = pump(inputStream, bufferStream(options), error => {
+			if (error) {
+				rejectPromise(error);
+				return;
+			}
+
+			resolve();
+		});
+
+		stream.on('data', () => {
+			if (stream.getBufferedLength() > maxBuffer) {
+				rejectPromise(new MaxBufferError());
+			}
+		});
+	});
+
+	return stream.getBufferedValue();
+}
+
+module.exports = getStream;
+// TODO: Remove this for the next major release
+module.exports.default = getStream;
+module.exports.buffer = (stream, options) => getStream(stream, {...options, encoding: 'buffer'});
+module.exports.array = (stream, options) => getStream(stream, {...options, array: true});
+module.exports.MaxBufferError = MaxBufferError;
+
 
 /***/ }),
 
@@ -608,7 +667,7 @@ eval("require")("encoding");
 module.exports = authenticationPlugin;
 
 const { Deprecation } = __webpack_require__(692);
-const once = __webpack_require__(969);
+const once = __webpack_require__(49);
 
 const deprecateAuthenticate = once((log, deprecation) => log.warn(deprecation));
 
@@ -648,7 +707,7 @@ function authenticationPlugin(octokit, options) {
 
 const cp = __webpack_require__(129);
 const parse = __webpack_require__(568);
-const enoent = __webpack_require__(881);
+const enoent = __webpack_require__(478);
 
 function spawn(command, args, options) {
     // Parse the arguments
@@ -684,13 +743,6 @@ module.exports.sync = spawnSync;
 module.exports._parse = parse;
 module.exports._enoent = enoent;
 
-
-/***/ }),
-
-/***/ 34:
-/***/ (function(module) {
-
-module.exports = require("https");
 
 /***/ }),
 
@@ -2225,51 +2277,48 @@ function coerce (version) {
 /***/ 49:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-"use strict";
+var wrappy = __webpack_require__(11)
+module.exports = wrappy(once)
+module.exports.strict = wrappy(onceStrict)
 
-const os = __webpack_require__(87);
-const execa = __webpack_require__(955);
+once.proto = once(function () {
+  Object.defineProperty(Function.prototype, 'once', {
+    value: function () {
+      return once(this)
+    },
+    configurable: true
+  })
 
-// Reference: https://www.gaijin.at/en/lstwinver.php
-const names = new Map([
-	['10.0', '10'],
-	['6.3', '8.1'],
-	['6.2', '8'],
-	['6.1', '7'],
-	['6.0', 'Vista'],
-	['5.2', 'Server 2003'],
-	['5.1', 'XP'],
-	['5.0', '2000'],
-	['4.9', 'ME'],
-	['4.1', '98'],
-	['4.0', '95']
-]);
+  Object.defineProperty(Function.prototype, 'onceStrict', {
+    value: function () {
+      return onceStrict(this)
+    },
+    configurable: true
+  })
+})
 
-const windowsRelease = release => {
-	const version = /\d+\.\d/.exec(release || os.release());
+function once (fn) {
+  var f = function () {
+    if (f.called) return f.value
+    f.called = true
+    return f.value = fn.apply(this, arguments)
+  }
+  f.called = false
+  return f
+}
 
-	if (release && !version) {
-		throw new Error('`release` argument doesn\'t match `n.n`');
-	}
-
-	const ver = (version || [])[0];
-
-	// Server 2008, 2012 and 2016 versions are ambiguous with desktop versions and must be detected at runtime.
-	// If `release` is omitted or we're on a Windows system, and the version number is an ambiguous version
-	// then use `wmic` to get the OS caption: https://msdn.microsoft.com/en-us/library/aa394531(v=vs.85).aspx
-	// If the resulting caption contains the year 2008, 2012 or 2016, it is a server version, so return a server OS name.
-	if ((!release || release === os.release()) && ['6.1', '6.2', '6.3', '10.0'].includes(ver)) {
-		const stdout = execa.sync('wmic', ['os', 'get', 'Caption']).stdout || '';
-		const year = (stdout.match(/2008|2012|2016/) || [])[0];
-		if (year) {
-			return `Server ${year}`;
-		}
-	}
-
-	return names.get(ver);
-};
-
-module.exports = windowsRelease;
+function onceStrict (fn) {
+  var f = function () {
+    if (f.called)
+      throw new Error(f.onceError)
+    f.called = true
+    return f.value = fn.apply(this, arguments)
+  }
+  var name = fn.name || 'Function wrapped with `once`'
+  f.onceError = name + " shouldn't be called more than once"
+  f.called = false
+  return f
+}
 
 
 /***/ }),
@@ -2503,6 +2552,61 @@ module.exports.default = normalizeUrl;
 
 /***/ }),
 
+/***/ 71:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+const path = __webpack_require__(622);
+const which = __webpack_require__(814);
+const pathKey = __webpack_require__(39)();
+
+function resolveCommandAttempt(parsed, withoutPathExt) {
+    const cwd = process.cwd();
+    const hasCustomCwd = parsed.options.cwd != null;
+
+    // If a custom `cwd` was specified, we need to change the process cwd
+    // because `which` will do stat calls but does not support a custom cwd
+    if (hasCustomCwd) {
+        try {
+            process.chdir(parsed.options.cwd);
+        } catch (err) {
+            /* Empty */
+        }
+    }
+
+    let resolved;
+
+    try {
+        resolved = which.sync(parsed.command, {
+            path: (parsed.options.env || process.env)[pathKey],
+            pathExt: withoutPathExt ? path.delimiter : undefined,
+        });
+    } catch (e) {
+        /* Empty */
+    } finally {
+        process.chdir(cwd);
+    }
+
+    // If we successfully resolved, ensure that an absolute path is returned
+    // Note that when a custom `cwd` was used, we need to resolve to an absolute path based on it
+    if (resolved) {
+        resolved = path.resolve(hasCustomCwd ? parsed.options.cwd : '', resolved);
+    }
+
+    return resolved;
+}
+
+function resolveCommand(parsed) {
+    return resolveCommandAttempt(parsed) || resolveCommandAttempt(parsed, true);
+}
+
+module.exports = resolveCommand;
+
+
+/***/ }),
+
 /***/ 72:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -2573,7 +2677,7 @@ function __export(m) {
 }
 Object.defineProperty(exports, "__esModule", { value: true });
 const url_1 = __webpack_require__(835);
-const create_1 = __webpack_require__(903);
+const create_1 = __webpack_require__(323);
 const defaults = {
     options: {
         method: 'GET',
@@ -2803,18 +2907,18 @@ const url_1 = __webpack_require__(835);
 const util_1 = __webpack_require__(669);
 const CacheableRequest = __webpack_require__(946);
 const http = __webpack_require__(605);
-const https = __webpack_require__(34);
+const https = __webpack_require__(211);
 const lowercaseKeys = __webpack_require__(474);
 const toReadableStream = __webpack_require__(952);
 const is_1 = __webpack_require__(534);
-const cacheable_lookup_1 = __webpack_require__(603);
+const cacheable_lookup_1 = __webpack_require__(753);
 const errors_1 = __webpack_require__(378);
 const known_hook_events_1 = __webpack_require__(766);
 const dynamic_require_1 = __webpack_require__(415);
 const get_body_size_1 = __webpack_require__(232);
 const is_form_data_1 = __webpack_require__(219);
 const merge_1 = __webpack_require__(164);
-const options_to_url_1 = __webpack_require__(980);
+const options_to_url_1 = __webpack_require__(856);
 const supports_brotli_1 = __webpack_require__(620);
 const types_1 = __webpack_require__(839);
 const nonEnumerableProperties = [
@@ -3237,303 +3341,6 @@ exports.normalizeRequestArguments = async (options) => {
     // `http-cache-semantics` checks this
     delete options.url;
     return options;
-};
-
-
-/***/ }),
-
-/***/ 112:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-const pTimeout = __webpack_require__(381);
-
-const symbolAsyncIterator = Symbol.asyncIterator || '@@asyncIterator';
-
-const normalizeEmitter = emitter => {
-	const addListener = emitter.on || emitter.addListener || emitter.addEventListener;
-	const removeListener = emitter.off || emitter.removeListener || emitter.removeEventListener;
-
-	if (!addListener || !removeListener) {
-		throw new TypeError('Emitter is not compatible');
-	}
-
-	return {
-		addListener: addListener.bind(emitter),
-		removeListener: removeListener.bind(emitter)
-	};
-};
-
-const normalizeEvents = event => Array.isArray(event) ? event : [event];
-
-const multiple = (emitter, event, options) => {
-	let cancel;
-	const ret = new Promise((resolve, reject) => {
-		options = {
-			rejectionEvents: ['error'],
-			multiArgs: false,
-			resolveImmediately: false,
-			...options
-		};
-
-		if (!(options.count >= 0 && (options.count === Infinity || Number.isInteger(options.count)))) {
-			throw new TypeError('The `count` option should be at least 0 or more');
-		}
-
-		// Allow multiple events
-		const events = normalizeEvents(event);
-
-		const items = [];
-		const {addListener, removeListener} = normalizeEmitter(emitter);
-
-		const onItem = (...args) => {
-			const value = options.multiArgs ? args : args[0];
-
-			if (options.filter && !options.filter(value)) {
-				return;
-			}
-
-			items.push(value);
-
-			if (options.count === items.length) {
-				cancel();
-				resolve(items);
-			}
-		};
-
-		const rejectHandler = error => {
-			cancel();
-			reject(error);
-		};
-
-		cancel = () => {
-			for (const event of events) {
-				removeListener(event, onItem);
-			}
-
-			for (const rejectionEvent of options.rejectionEvents) {
-				removeListener(rejectionEvent, rejectHandler);
-			}
-		};
-
-		for (const event of events) {
-			addListener(event, onItem);
-		}
-
-		for (const rejectionEvent of options.rejectionEvents) {
-			addListener(rejectionEvent, rejectHandler);
-		}
-
-		if (options.resolveImmediately) {
-			resolve(items);
-		}
-	});
-
-	ret.cancel = cancel;
-
-	if (typeof options.timeout === 'number') {
-		const timeout = pTimeout(ret, options.timeout);
-		timeout.cancel = cancel;
-		return timeout;
-	}
-
-	return ret;
-};
-
-const pEvent = (emitter, event, options) => {
-	if (typeof options === 'function') {
-		options = {filter: options};
-	}
-
-	options = {
-		...options,
-		count: 1,
-		resolveImmediately: false
-	};
-
-	const arrayPromise = multiple(emitter, event, options);
-	const promise = arrayPromise.then(array => array[0]); // eslint-disable-line promise/prefer-await-to-then
-	promise.cancel = arrayPromise.cancel;
-
-	return promise;
-};
-
-module.exports = pEvent;
-// TODO: Remove this for the next major release
-module.exports.default = pEvent;
-
-module.exports.multiple = multiple;
-
-module.exports.iterator = (emitter, event, options) => {
-	if (typeof options === 'function') {
-		options = {filter: options};
-	}
-
-	// Allow multiple events
-	const events = normalizeEvents(event);
-
-	options = {
-		rejectionEvents: ['error'],
-		resolutionEvents: [],
-		limit: Infinity,
-		multiArgs: false,
-		...options
-	};
-
-	const {limit} = options;
-	const isValidLimit = limit >= 0 && (limit === Infinity || Number.isInteger(limit));
-	if (!isValidLimit) {
-		throw new TypeError('The `limit` option should be a non-negative integer or Infinity');
-	}
-
-	if (limit === 0) {
-		// Return an empty async iterator to avoid any further cost
-		return {
-			[Symbol.asyncIterator]() {
-				return this;
-			},
-			async next() {
-				return {
-					done: true,
-					value: undefined
-				};
-			}
-		};
-	}
-
-	const {addListener, removeListener} = normalizeEmitter(emitter);
-
-	let isDone = false;
-	let error;
-	let hasPendingError = false;
-	const nextQueue = [];
-	const valueQueue = [];
-	let eventCount = 0;
-	let isLimitReached = false;
-
-	const valueHandler = (...args) => {
-		eventCount++;
-		isLimitReached = eventCount === limit;
-
-		const value = options.multiArgs ? args : args[0];
-
-		if (nextQueue.length > 0) {
-			const {resolve} = nextQueue.shift();
-
-			resolve({done: false, value});
-
-			if (isLimitReached) {
-				cancel();
-			}
-
-			return;
-		}
-
-		valueQueue.push(value);
-
-		if (isLimitReached) {
-			cancel();
-		}
-	};
-
-	const cancel = () => {
-		isDone = true;
-		for (const event of events) {
-			removeListener(event, valueHandler);
-		}
-
-		for (const rejectionEvent of options.rejectionEvents) {
-			removeListener(rejectionEvent, rejectHandler);
-		}
-
-		for (const resolutionEvent of options.resolutionEvents) {
-			removeListener(resolutionEvent, resolveHandler);
-		}
-
-		while (nextQueue.length > 0) {
-			const {resolve} = nextQueue.shift();
-			resolve({done: true, value: undefined});
-		}
-	};
-
-	const rejectHandler = (...args) => {
-		error = options.multiArgs ? args : args[0];
-
-		if (nextQueue.length > 0) {
-			const {reject} = nextQueue.shift();
-			reject(error);
-		} else {
-			hasPendingError = true;
-		}
-
-		cancel();
-	};
-
-	const resolveHandler = (...args) => {
-		const value = options.multiArgs ? args : args[0];
-
-		if (options.filter && !options.filter(value)) {
-			return;
-		}
-
-		if (nextQueue.length > 0) {
-			const {resolve} = nextQueue.shift();
-			resolve({done: true, value});
-		} else {
-			valueQueue.push(value);
-		}
-
-		cancel();
-	};
-
-	for (const event of events) {
-		addListener(event, valueHandler);
-	}
-
-	for (const rejectionEvent of options.rejectionEvents) {
-		addListener(rejectionEvent, rejectHandler);
-	}
-
-	for (const resolutionEvent of options.resolutionEvents) {
-		addListener(resolutionEvent, resolveHandler);
-	}
-
-	return {
-		[symbolAsyncIterator]() {
-			return this;
-		},
-		async next() {
-			if (valueQueue.length > 0) {
-				const value = valueQueue.shift();
-				return {
-					done: isDone && valueQueue.length === 0 && !isLimitReached,
-					value
-				};
-			}
-
-			if (hasPendingError) {
-				hasPendingError = false;
-				throw error;
-			}
-
-			if (isDone) {
-				return {
-					done: true,
-					value: undefined
-				};
-			}
-
-			return new Promise((resolve, reject) => nextQueue.push({resolve, reject}));
-		},
-		async return(value) {
-			cancel();
-			return {
-				done: isDone,
-				value
-			};
-		}
-	};
 };
 
 
@@ -4489,6 +4296,65 @@ module.exports = require("child_process");
 
 /***/ }),
 
+/***/ 136:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const github_pages_deploy_action_1 = __importDefault(__webpack_require__(922));
+const core = __importStar(__webpack_require__(470));
+const exec_1 = __webpack_require__(986);
+function checkout(branch) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield exec_1.exec(`git init`);
+        yield exec_1.exec(`git config user.name "heads-up"`);
+        yield exec_1.exec(`git config user.email "github@users.noreply.github.com"`);
+        yield exec_1.exec(`git fetch`);
+        yield exec_1.exec(`git checkout --progress --force ${branch}`);
+    });
+}
+exports.checkout = checkout;
+function publish(commitMessage) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const publishConfig = {
+            commitMessage,
+            accessToken: core.getInput("access_token"),
+            branch: "gh-pages",
+            folder: "build",
+            clean: true,
+            name: "heads-up",
+            email: "github@users.noreply.github.com",
+            repositoryName: process.env.GITHUB_REPOSITORY,
+            workspace: process.env.GITHUB_WORKSPACE || ""
+        };
+        return github_pages_deploy_action_1.default(publishConfig);
+    });
+}
+exports.publish = publish;
+
+
+/***/ }),
+
 /***/ 141:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -4496,9 +4362,9 @@ module.exports = require("child_process");
 
 
 var net = __webpack_require__(631);
-var tls = __webpack_require__(16);
+var tls = __webpack_require__(818);
 var http = __webpack_require__(605);
-var https = __webpack_require__(34);
+var https = __webpack_require__(211);
 var events = __webpack_require__(614);
 var assert = __webpack_require__(357);
 var util = __webpack_require__(669);
@@ -4852,13 +4718,296 @@ module.exports.MaxBufferError = MaxBufferError;
 /***/ 148:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-module.exports = paginatePlugin;
+"use strict";
 
-const { paginateRest } = __webpack_require__(299);
+const pTimeout = __webpack_require__(654);
 
-function paginatePlugin(octokit) {
-  Object.assign(octokit, paginateRest(octokit));
-}
+const symbolAsyncIterator = Symbol.asyncIterator || '@@asyncIterator';
+
+const normalizeEmitter = emitter => {
+	const addListener = emitter.on || emitter.addListener || emitter.addEventListener;
+	const removeListener = emitter.off || emitter.removeListener || emitter.removeEventListener;
+
+	if (!addListener || !removeListener) {
+		throw new TypeError('Emitter is not compatible');
+	}
+
+	return {
+		addListener: addListener.bind(emitter),
+		removeListener: removeListener.bind(emitter)
+	};
+};
+
+const normalizeEvents = event => Array.isArray(event) ? event : [event];
+
+const multiple = (emitter, event, options) => {
+	let cancel;
+	const ret = new Promise((resolve, reject) => {
+		options = {
+			rejectionEvents: ['error'],
+			multiArgs: false,
+			resolveImmediately: false,
+			...options
+		};
+
+		if (!(options.count >= 0 && (options.count === Infinity || Number.isInteger(options.count)))) {
+			throw new TypeError('The `count` option should be at least 0 or more');
+		}
+
+		// Allow multiple events
+		const events = normalizeEvents(event);
+
+		const items = [];
+		const {addListener, removeListener} = normalizeEmitter(emitter);
+
+		const onItem = (...args) => {
+			const value = options.multiArgs ? args : args[0];
+
+			if (options.filter && !options.filter(value)) {
+				return;
+			}
+
+			items.push(value);
+
+			if (options.count === items.length) {
+				cancel();
+				resolve(items);
+			}
+		};
+
+		const rejectHandler = error => {
+			cancel();
+			reject(error);
+		};
+
+		cancel = () => {
+			for (const event of events) {
+				removeListener(event, onItem);
+			}
+
+			for (const rejectionEvent of options.rejectionEvents) {
+				removeListener(rejectionEvent, rejectHandler);
+			}
+		};
+
+		for (const event of events) {
+			addListener(event, onItem);
+		}
+
+		for (const rejectionEvent of options.rejectionEvents) {
+			addListener(rejectionEvent, rejectHandler);
+		}
+
+		if (options.resolveImmediately) {
+			resolve(items);
+		}
+	});
+
+	ret.cancel = cancel;
+
+	if (typeof options.timeout === 'number') {
+		const timeout = pTimeout(ret, options.timeout);
+		timeout.cancel = cancel;
+		return timeout;
+	}
+
+	return ret;
+};
+
+const pEvent = (emitter, event, options) => {
+	if (typeof options === 'function') {
+		options = {filter: options};
+	}
+
+	options = {
+		...options,
+		count: 1,
+		resolveImmediately: false
+	};
+
+	const arrayPromise = multiple(emitter, event, options);
+	const promise = arrayPromise.then(array => array[0]); // eslint-disable-line promise/prefer-await-to-then
+	promise.cancel = arrayPromise.cancel;
+
+	return promise;
+};
+
+module.exports = pEvent;
+// TODO: Remove this for the next major release
+module.exports.default = pEvent;
+
+module.exports.multiple = multiple;
+
+module.exports.iterator = (emitter, event, options) => {
+	if (typeof options === 'function') {
+		options = {filter: options};
+	}
+
+	// Allow multiple events
+	const events = normalizeEvents(event);
+
+	options = {
+		rejectionEvents: ['error'],
+		resolutionEvents: [],
+		limit: Infinity,
+		multiArgs: false,
+		...options
+	};
+
+	const {limit} = options;
+	const isValidLimit = limit >= 0 && (limit === Infinity || Number.isInteger(limit));
+	if (!isValidLimit) {
+		throw new TypeError('The `limit` option should be a non-negative integer or Infinity');
+	}
+
+	if (limit === 0) {
+		// Return an empty async iterator to avoid any further cost
+		return {
+			[Symbol.asyncIterator]() {
+				return this;
+			},
+			async next() {
+				return {
+					done: true,
+					value: undefined
+				};
+			}
+		};
+	}
+
+	const {addListener, removeListener} = normalizeEmitter(emitter);
+
+	let isDone = false;
+	let error;
+	let hasPendingError = false;
+	const nextQueue = [];
+	const valueQueue = [];
+	let eventCount = 0;
+	let isLimitReached = false;
+
+	const valueHandler = (...args) => {
+		eventCount++;
+		isLimitReached = eventCount === limit;
+
+		const value = options.multiArgs ? args : args[0];
+
+		if (nextQueue.length > 0) {
+			const {resolve} = nextQueue.shift();
+
+			resolve({done: false, value});
+
+			if (isLimitReached) {
+				cancel();
+			}
+
+			return;
+		}
+
+		valueQueue.push(value);
+
+		if (isLimitReached) {
+			cancel();
+		}
+	};
+
+	const cancel = () => {
+		isDone = true;
+		for (const event of events) {
+			removeListener(event, valueHandler);
+		}
+
+		for (const rejectionEvent of options.rejectionEvents) {
+			removeListener(rejectionEvent, rejectHandler);
+		}
+
+		for (const resolutionEvent of options.resolutionEvents) {
+			removeListener(resolutionEvent, resolveHandler);
+		}
+
+		while (nextQueue.length > 0) {
+			const {resolve} = nextQueue.shift();
+			resolve({done: true, value: undefined});
+		}
+	};
+
+	const rejectHandler = (...args) => {
+		error = options.multiArgs ? args : args[0];
+
+		if (nextQueue.length > 0) {
+			const {reject} = nextQueue.shift();
+			reject(error);
+		} else {
+			hasPendingError = true;
+		}
+
+		cancel();
+	};
+
+	const resolveHandler = (...args) => {
+		const value = options.multiArgs ? args : args[0];
+
+		if (options.filter && !options.filter(value)) {
+			return;
+		}
+
+		if (nextQueue.length > 0) {
+			const {resolve} = nextQueue.shift();
+			resolve({done: true, value});
+		} else {
+			valueQueue.push(value);
+		}
+
+		cancel();
+	};
+
+	for (const event of events) {
+		addListener(event, valueHandler);
+	}
+
+	for (const rejectionEvent of options.rejectionEvents) {
+		addListener(rejectionEvent, rejectHandler);
+	}
+
+	for (const resolutionEvent of options.resolutionEvents) {
+		addListener(resolutionEvent, resolveHandler);
+	}
+
+	return {
+		[symbolAsyncIterator]() {
+			return this;
+		},
+		async next() {
+			if (valueQueue.length > 0) {
+				const value = valueQueue.shift();
+				return {
+					done: isDone && valueQueue.length === 0 && !isLimitReached,
+					value
+				};
+			}
+
+			if (hasPendingError) {
+				hasPendingError = false;
+				throw error;
+			}
+
+			if (isDone) {
+				return {
+					done: true,
+					value: undefined
+				};
+			}
+
+			return new Promise((resolve, reject) => nextQueue.push({resolve, reject}));
+		},
+		async return(value) {
+			cancel();
+			return {
+				done: isDone,
+				value
+			};
+		}
+	};
+};
 
 
 /***/ }),
@@ -5643,7 +5792,7 @@ module.exports = authenticationPlugin;
 
 const { createTokenAuth } = __webpack_require__(813);
 const { Deprecation } = __webpack_require__(692);
-const once = __webpack_require__(969);
+const once = __webpack_require__(49);
 
 const beforeRequest = __webpack_require__(863);
 const requestError = __webpack_require__(293);
@@ -5792,38 +5941,22 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const github_pages_deploy_action_1 = __importDefault(__webpack_require__(922));
 const got_1 = __importDefault(__webpack_require__(77));
 const core = __importStar(__webpack_require__(470));
-const exec_1 = __webpack_require__(986);
 const write_1 = __webpack_require__(338);
+const git = __importStar(__webpack_require__(136));
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
-        const url = core.getInput('url');
+        const url = core.getInput("url");
         const response = yield got_1.default(url);
-        core.debug(`Request succesfully made: ${url}`);
-        yield exec_1.exec(`git init`);
-        yield exec_1.exec(`git config user.name "heads-up"`);
-        yield exec_1.exec(`git config user.email "github@users.noreply.github.com"`);
-        yield exec_1.exec(`git fetch`);
-        yield exec_1.exec(`git checkout --progress --force gh-pages`);
         const timings = response.timings.phases;
+        core.debug("Request succesfully made: ${url}");
+        yield git.checkout("gh-pages");
         yield write_1.writeTimings(timings);
-        core.debug(`Timings extracted`);
-        const actionConfig = generateActionConfig(`✅ ${url} – ${timings.total}ms`);
-        github_pages_deploy_action_1.default(actionConfig);
+        core.debug("Timings extracted");
+        yield git.publish(`✅ ${url} – ${timings.total}ms`);
+        core.debug("Heads-up run completed!");
     });
-}
-function generateActionConfig(commitMessage) {
-    return {
-        commitMessage,
-        accessToken: core.getInput('access_token'),
-        branch: 'gh-pages',
-        folder: 'build',
-        clean: true,
-        repositoryName: process.env.GITHUB_REPOSITORY,
-        workspace: process.env.GITHUB_WORKSPACE || ''
-    };
 }
 main().catch(e => core.setFailed(e.message));
 
@@ -5895,6 +6028,35 @@ exports.parse = function (s) {
 
 /***/ }),
 
+/***/ 207:
+/***/ (function(module) {
+
+"use strict";
+
+
+var isStream = module.exports = function (stream) {
+	return stream !== null && typeof stream === 'object' && typeof stream.pipe === 'function';
+};
+
+isStream.writable = function (stream) {
+	return isStream(stream) && stream.writable !== false && typeof stream._write === 'function' && typeof stream._writableState === 'object';
+};
+
+isStream.readable = function (stream) {
+	return isStream(stream) && stream.readable !== false && typeof stream._read === 'function' && typeof stream._readableState === 'object';
+};
+
+isStream.duplex = function (stream) {
+	return isStream.writable(stream) && isStream.readable(stream);
+};
+
+isStream.transform = function (stream) {
+	return isStream.duplex(stream) && typeof stream._transform === 'function' && typeof stream._transformState === 'object';
+};
+
+
+/***/ }),
+
 /***/ 210:
 /***/ (function(module) {
 
@@ -5936,39 +6098,142 @@ module.exports = (fromStream, toStream) => {
 /***/ }),
 
 /***/ 211:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
+/***/ (function(module) {
 
-"use strict";
-
-
-Object.defineProperty(exports, '__esModule', { value: true });
-
-function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
-
-var osName = _interopDefault(__webpack_require__(2));
-
-function getUserAgent() {
-  try {
-    return `Node.js/${process.version.substr(1)} (${osName()}; ${process.arch})`;
-  } catch (error) {
-    if (/wmic os get Caption/.test(error.message)) {
-      return "Windows <version undetectable>";
-    }
-
-    return "<environment undetectable>";
-  }
-}
-
-exports.getUserAgent = getUserAgent;
-//# sourceMappingURL=index.js.map
-
+module.exports = require("https");
 
 /***/ }),
 
 /***/ 215:
-/***/ (function(module) {
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-module.exports = {"_from":"@octokit/rest@^16.43.1","_id":"@octokit/rest@16.43.1","_inBundle":false,"_integrity":"sha512-gfFKwRT/wFxq5qlNjnW2dh+qh74XgTQ2B179UX5K1HYCluioWj8Ndbgqw2PVqa1NnVJkGHp2ovMpVn/DImlmkw==","_location":"/@octokit/rest","_phantomChildren":{},"_requested":{"type":"range","registry":true,"raw":"@octokit/rest@^16.43.1","name":"@octokit/rest","escapedName":"@octokit%2frest","scope":"@octokit","rawSpec":"^16.43.1","saveSpec":null,"fetchSpec":"^16.43.1"},"_requiredBy":["/@actions/github"],"_resolved":"https://registry.npmjs.org/@octokit/rest/-/rest-16.43.1.tgz","_shasum":"3b11e7d1b1ac2bbeeb23b08a17df0b20947eda6b","_spec":"@octokit/rest@^16.43.1","_where":"/Users/matan/dev/heads-up/node_modules/@actions/github","author":{"name":"Gregor Martynus","url":"https://github.com/gr2m"},"bugs":{"url":"https://github.com/octokit/rest.js/issues"},"bundleDependencies":false,"bundlesize":[{"path":"./dist/octokit-rest.min.js.gz","maxSize":"33 kB"}],"contributors":[{"name":"Mike de Boer","email":"info@mikedeboer.nl"},{"name":"Fabian Jakobs","email":"fabian@c9.io"},{"name":"Joe Gallo","email":"joe@brassafrax.com"},{"name":"Gregor Martynus","url":"https://github.com/gr2m"}],"dependencies":{"@octokit/auth-token":"^2.4.0","@octokit/plugin-paginate-rest":"^1.1.1","@octokit/plugin-request-log":"^1.0.0","@octokit/plugin-rest-endpoint-methods":"2.4.0","@octokit/request":"^5.2.0","@octokit/request-error":"^1.0.2","atob-lite":"^2.0.0","before-after-hook":"^2.0.0","btoa-lite":"^1.0.0","deprecation":"^2.0.0","lodash.get":"^4.4.2","lodash.set":"^4.3.2","lodash.uniq":"^4.5.0","octokit-pagination-methods":"^1.1.0","once":"^1.4.0","universal-user-agent":"^4.0.0"},"deprecated":false,"description":"GitHub REST API client for Node.js","devDependencies":{"@gimenete/type-writer":"^0.1.3","@octokit/auth":"^1.1.1","@octokit/fixtures-server":"^5.0.6","@octokit/graphql":"^4.2.0","@types/node":"^13.1.0","bundlesize":"^0.18.0","chai":"^4.1.2","compression-webpack-plugin":"^3.1.0","cypress":"^3.0.0","glob":"^7.1.2","http-proxy-agent":"^4.0.0","lodash.camelcase":"^4.3.0","lodash.merge":"^4.6.1","lodash.upperfirst":"^4.3.1","lolex":"^5.1.2","mkdirp":"^1.0.0","mocha":"^7.0.1","mustache":"^4.0.0","nock":"^11.3.3","npm-run-all":"^4.1.2","nyc":"^15.0.0","prettier":"^1.14.2","proxy":"^1.0.0","semantic-release":"^17.0.0","sinon":"^8.0.0","sinon-chai":"^3.0.0","sort-keys":"^4.0.0","string-to-arraybuffer":"^1.0.0","string-to-jsdoc-comment":"^1.0.0","typescript":"^3.3.1","webpack":"^4.0.0","webpack-bundle-analyzer":"^3.0.0","webpack-cli":"^3.0.0"},"files":["index.js","index.d.ts","lib","plugins"],"homepage":"https://github.com/octokit/rest.js#readme","keywords":["octokit","github","rest","api-client"],"license":"MIT","name":"@octokit/rest","nyc":{"ignore":["test"]},"publishConfig":{"access":"public"},"release":{"publish":["@semantic-release/npm",{"path":"@semantic-release/github","assets":["dist/*","!dist/*.map.gz"]}]},"repository":{"type":"git","url":"git+https://github.com/octokit/rest.js.git"},"scripts":{"build":"npm-run-all build:*","build:browser":"npm-run-all build:browser:*","build:browser:development":"webpack --mode development --entry . --output-library=Octokit --output=./dist/octokit-rest.js --profile --json > dist/bundle-stats.json","build:browser:production":"webpack --mode production --entry . --plugin=compression-webpack-plugin --output-library=Octokit --output-path=./dist --output-filename=octokit-rest.min.js --devtool source-map","build:ts":"npm run -s update-endpoints:typescript","coverage":"nyc report --reporter=html && open coverage/index.html","generate-bundle-report":"webpack-bundle-analyzer dist/bundle-stats.json --mode=static --no-open --report dist/bundle-report.html","lint":"prettier --check '{lib,plugins,scripts,test}/**/*.{js,json,ts}' 'docs/*.{js,json}' 'docs/src/**/*' index.js README.md package.json","lint:fix":"prettier --write '{lib,plugins,scripts,test}/**/*.{js,json,ts}' 'docs/*.{js,json}' 'docs/src/**/*' index.js README.md package.json","postvalidate:ts":"tsc --noEmit --target es6 test/typescript-validate.ts","prebuild:browser":"mkdirp dist/","pretest":"npm run -s lint","prevalidate:ts":"npm run -s build:ts","start-fixtures-server":"octokit-fixtures-server","test":"nyc mocha test/mocha-node-setup.js \"test/*/**/*-test.js\"","test:browser":"cypress run --browser chrome","update-endpoints":"npm-run-all update-endpoints:*","update-endpoints:fetch-json":"node scripts/update-endpoints/fetch-json","update-endpoints:typescript":"node scripts/update-endpoints/typescript","validate:ts":"tsc --target es6 --noImplicitAny index.d.ts"},"types":"index.d.ts","version":"16.43.1"};
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const net = __webpack_require__(631);
+const unhandle_1 = __webpack_require__(668);
+const reentry = Symbol('reentry');
+const noop = () => { };
+class TimeoutError extends Error {
+    constructor(threshold, event) {
+        super(`Timeout awaiting '${event}' for ${threshold}ms`);
+        this.event = event;
+        this.name = 'TimeoutError';
+        this.code = 'ETIMEDOUT';
+    }
+}
+exports.TimeoutError = TimeoutError;
+exports.default = (request, delays, options) => {
+    if (Reflect.has(request, reentry)) {
+        return noop;
+    }
+    request[reentry] = true;
+    const cancelers = [];
+    const { once, unhandleAll } = unhandle_1.default();
+    const addTimeout = (delay, callback, event) => {
+        var _a, _b;
+        const timeout = setTimeout(callback, delay, delay, event);
+        (_b = (_a = timeout).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
+        const cancel = () => {
+            clearTimeout(timeout);
+        };
+        cancelers.push(cancel);
+        return cancel;
+    };
+    const { host, hostname } = options;
+    const timeoutHandler = (delay, event) => {
+        if (request.socket) {
+            // @ts-ignore We do not want the `socket hang up` error
+            request.socket._hadError = true;
+        }
+        request.abort();
+        request.emit('error', new TimeoutError(delay, event));
+    };
+    const cancelTimeouts = () => {
+        for (const cancel of cancelers) {
+            cancel();
+        }
+        unhandleAll();
+    };
+    request.once('error', error => {
+        cancelTimeouts();
+        // Save original behavior
+        if (request.listenerCount('error') === 0) {
+            throw error;
+        }
+    });
+    request.once('abort', cancelTimeouts);
+    once(request, 'response', (response) => {
+        once(response, 'end', cancelTimeouts);
+    });
+    if (typeof delays.request !== 'undefined') {
+        addTimeout(delays.request, timeoutHandler, 'request');
+    }
+    if (typeof delays.socket !== 'undefined') {
+        const socketTimeoutHandler = () => {
+            timeoutHandler(delays.socket, 'socket');
+        };
+        request.setTimeout(delays.socket, socketTimeoutHandler);
+        // `request.setTimeout(0)` causes a memory leak.
+        // We can just remove the listener and forget about the timer - it's unreffed.
+        // See https://github.com/sindresorhus/got/issues/690
+        cancelers.push(() => {
+            request.removeListener('timeout', socketTimeoutHandler);
+        });
+    }
+    once(request, 'socket', (socket) => {
+        var _a;
+        // @ts-ignore Node typings doesn't have this property
+        const { socketPath } = request;
+        /* istanbul ignore next: hard to test */
+        if (socket.connecting) {
+            const hasPath = Boolean((socketPath !== null && socketPath !== void 0 ? socketPath : net.isIP((_a = (hostname !== null && hostname !== void 0 ? hostname : host), (_a !== null && _a !== void 0 ? _a : ''))) !== 0));
+            if (typeof delays.lookup !== 'undefined' && !hasPath && typeof socket.address().address === 'undefined') {
+                const cancelTimeout = addTimeout(delays.lookup, timeoutHandler, 'lookup');
+                once(socket, 'lookup', cancelTimeout);
+            }
+            if (typeof delays.connect !== 'undefined') {
+                const timeConnect = () => addTimeout(delays.connect, timeoutHandler, 'connect');
+                if (hasPath) {
+                    once(socket, 'connect', timeConnect());
+                }
+                else {
+                    once(socket, 'lookup', (error) => {
+                        if (error === null) {
+                            once(socket, 'connect', timeConnect());
+                        }
+                    });
+                }
+            }
+            if (typeof delays.secureConnect !== 'undefined' && options.protocol === 'https:') {
+                once(socket, 'connect', () => {
+                    const cancelTimeout = addTimeout(delays.secureConnect, timeoutHandler, 'secureConnect');
+                    once(socket, 'secureConnect', cancelTimeout);
+                });
+            }
+        }
+        if (typeof delays.send !== 'undefined') {
+            const timeRequest = () => addTimeout(delays.send, timeoutHandler, 'send');
+            /* istanbul ignore next: hard to test */
+            if (socket.connecting) {
+                once(socket, 'connect', () => {
+                    once(request, 'upload-complete', timeRequest());
+                });
+            }
+            else {
+                once(request, 'upload-complete', timeRequest());
+            }
+        }
+    });
+    if (typeof delays.response !== 'undefined') {
+        once(request, 'upload-complete', () => {
+            const cancelTimeout = addTimeout(delays.response, timeoutHandler, 'response');
+            once(request, 'response', cancelTimeout);
+        });
+    }
+    return cancelTimeouts;
+};
+
 
 /***/ }),
 
@@ -6032,7 +6297,7 @@ const decompressResponse = __webpack_require__(861);
 const mimicResponse = __webpack_require__(89);
 const stream = __webpack_require__(413);
 const util_1 = __webpack_require__(669);
-const progress_1 = __webpack_require__(662);
+const progress_1 = __webpack_require__(489);
 const pipeline = util_1.promisify(stream.pipeline);
 exports.default = async (response, options, emitter) => {
     var _a;
@@ -6062,7 +6327,7 @@ exports.default = async (response, options, emitter) => {
 // that are in the direct sync flow of nyc's outputCoverage are
 // ignored, since we can never get coverage for them.
 var assert = __webpack_require__(357)
-var signals = __webpack_require__(654)
+var signals = __webpack_require__(306)
 
 var EE = __webpack_require__(614)
 /* istanbul ignore if */
@@ -6384,6 +6649,13 @@ function register (state, name, method, options) {
 
 /***/ }),
 
+/***/ 282:
+/***/ (function(module) {
+
+module.exports = {"_from":"@octokit/rest@^16.43.1","_id":"@octokit/rest@16.43.1","_inBundle":false,"_integrity":"sha512-gfFKwRT/wFxq5qlNjnW2dh+qh74XgTQ2B179UX5K1HYCluioWj8Ndbgqw2PVqa1NnVJkGHp2ovMpVn/DImlmkw==","_location":"/@octokit/rest","_phantomChildren":{},"_requested":{"type":"range","registry":true,"raw":"@octokit/rest@^16.43.1","name":"@octokit/rest","escapedName":"@octokit%2frest","scope":"@octokit","rawSpec":"^16.43.1","saveSpec":null,"fetchSpec":"^16.43.1"},"_requiredBy":["/@actions/github"],"_resolved":"https://registry.npmjs.org/@octokit/rest/-/rest-16.43.1.tgz","_shasum":"3b11e7d1b1ac2bbeeb23b08a17df0b20947eda6b","_spec":"@octokit/rest@^16.43.1","_where":"/Users/matan/dev/heads-up/node_modules/@actions/github","author":{"name":"Gregor Martynus","url":"https://github.com/gr2m"},"bugs":{"url":"https://github.com/octokit/rest.js/issues"},"bundleDependencies":false,"bundlesize":[{"path":"./dist/octokit-rest.min.js.gz","maxSize":"33 kB"}],"contributors":[{"name":"Mike de Boer","email":"info@mikedeboer.nl"},{"name":"Fabian Jakobs","email":"fabian@c9.io"},{"name":"Joe Gallo","email":"joe@brassafrax.com"},{"name":"Gregor Martynus","url":"https://github.com/gr2m"}],"dependencies":{"@octokit/auth-token":"^2.4.0","@octokit/plugin-paginate-rest":"^1.1.1","@octokit/plugin-request-log":"^1.0.0","@octokit/plugin-rest-endpoint-methods":"2.4.0","@octokit/request":"^5.2.0","@octokit/request-error":"^1.0.2","atob-lite":"^2.0.0","before-after-hook":"^2.0.0","btoa-lite":"^1.0.0","deprecation":"^2.0.0","lodash.get":"^4.4.2","lodash.set":"^4.3.2","lodash.uniq":"^4.5.0","octokit-pagination-methods":"^1.1.0","once":"^1.4.0","universal-user-agent":"^4.0.0"},"deprecated":false,"description":"GitHub REST API client for Node.js","devDependencies":{"@gimenete/type-writer":"^0.1.3","@octokit/auth":"^1.1.1","@octokit/fixtures-server":"^5.0.6","@octokit/graphql":"^4.2.0","@types/node":"^13.1.0","bundlesize":"^0.18.0","chai":"^4.1.2","compression-webpack-plugin":"^3.1.0","cypress":"^3.0.0","glob":"^7.1.2","http-proxy-agent":"^4.0.0","lodash.camelcase":"^4.3.0","lodash.merge":"^4.6.1","lodash.upperfirst":"^4.3.1","lolex":"^5.1.2","mkdirp":"^1.0.0","mocha":"^7.0.1","mustache":"^4.0.0","nock":"^11.3.3","npm-run-all":"^4.1.2","nyc":"^15.0.0","prettier":"^1.14.2","proxy":"^1.0.0","semantic-release":"^17.0.0","sinon":"^8.0.0","sinon-chai":"^3.0.0","sort-keys":"^4.0.0","string-to-arraybuffer":"^1.0.0","string-to-jsdoc-comment":"^1.0.0","typescript":"^3.3.1","webpack":"^4.0.0","webpack-bundle-analyzer":"^3.0.0","webpack-cli":"^3.0.0"},"files":["index.js","index.d.ts","lib","plugins"],"homepage":"https://github.com/octokit/rest.js#readme","keywords":["octokit","github","rest","api-client"],"license":"MIT","name":"@octokit/rest","nyc":{"ignore":["test"]},"publishConfig":{"access":"public"},"release":{"publish":["@semantic-release/npm",{"path":"@semantic-release/github","assets":["dist/*","!dist/*.map.gz"]}]},"repository":{"type":"git","url":"git+https://github.com/octokit/rest.js.git"},"scripts":{"build":"npm-run-all build:*","build:browser":"npm-run-all build:browser:*","build:browser:development":"webpack --mode development --entry . --output-library=Octokit --output=./dist/octokit-rest.js --profile --json > dist/bundle-stats.json","build:browser:production":"webpack --mode production --entry . --plugin=compression-webpack-plugin --output-library=Octokit --output-path=./dist --output-filename=octokit-rest.min.js --devtool source-map","build:ts":"npm run -s update-endpoints:typescript","coverage":"nyc report --reporter=html && open coverage/index.html","generate-bundle-report":"webpack-bundle-analyzer dist/bundle-stats.json --mode=static --no-open --report dist/bundle-report.html","lint":"prettier --check '{lib,plugins,scripts,test}/**/*.{js,json,ts}' 'docs/*.{js,json}' 'docs/src/**/*' index.js README.md package.json","lint:fix":"prettier --write '{lib,plugins,scripts,test}/**/*.{js,json,ts}' 'docs/*.{js,json}' 'docs/src/**/*' index.js README.md package.json","postvalidate:ts":"tsc --noEmit --target es6 test/typescript-validate.ts","prebuild:browser":"mkdirp dist/","pretest":"npm run -s lint","prevalidate:ts":"npm run -s build:ts","start-fixtures-server":"octokit-fixtures-server","test":"nyc mocha test/mocha-node-setup.js \"test/*/**/*-test.js\"","test:browser":"cypress run --browser chrome","update-endpoints":"npm-run-all update-endpoints:*","update-endpoints:fetch-json":"node scripts/update-endpoints/fetch-json","update-endpoints:typescript":"node scripts/update-endpoints/typescript","validate:ts":"tsc --target es6 --noImplicitAny index.d.ts"},"types":"index.d.ts","version":"16.43.1"};
+
+/***/ }),
+
 /***/ 291:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -6479,9 +6751,9 @@ module.exports = parseOptions;
 
 const { Deprecation } = __webpack_require__(692);
 const { getUserAgent } = __webpack_require__(796);
-const once = __webpack_require__(969);
+const once = __webpack_require__(49);
 
-const pkg = __webpack_require__(215);
+const pkg = __webpack_require__(282);
 
 const deprecateOptionsTimeout = once((log, deprecation) =>
   log.warn(deprecation)
@@ -6859,31 +7131,377 @@ module.exports = Keyv;
 
 /***/ }),
 
-/***/ 323:
+/***/ 306:
 /***/ (function(module) {
+
+// This is not the set of all possible signals.
+//
+// It IS, however, the set of all signals that trigger
+// an exit on either Linux or BSD systems.  Linux is a
+// superset of the signal names supported on BSD, and
+// the unknown signals just fail to register, so we can
+// catch that easily enough.
+//
+// Don't bother with SIGKILL.  It's uncatchable, which
+// means that we can't fire any callbacks anyway.
+//
+// If a user does happen to register a handler on a non-
+// fatal signal like SIGWINCH or something, and then
+// exit, it'll end up firing `process.emit('exit')`, so
+// the handler will be fired anyway.
+//
+// SIGBUS, SIGFPE, SIGSEGV and SIGILL, when not raised
+// artificially, inherently leave the process in a
+// state from which it is not safe to try and enter JS
+// listeners.
+module.exports = [
+  'SIGABRT',
+  'SIGALRM',
+  'SIGHUP',
+  'SIGINT',
+  'SIGTERM'
+]
+
+if (process.platform !== 'win32') {
+  module.exports.push(
+    'SIGVTALRM',
+    'SIGXCPU',
+    'SIGXFSZ',
+    'SIGUSR2',
+    'SIGTRAP',
+    'SIGSYS',
+    'SIGQUIT',
+    'SIGIOT'
+    // should detect profiler and enable/disable accordingly.
+    // see #21
+    // 'SIGPROF'
+  )
+}
+
+if (process.platform === 'linux') {
+  module.exports.push(
+    'SIGIO',
+    'SIGPOLL',
+    'SIGPWR',
+    'SIGSTKFLT',
+    'SIGUNUSED'
+  )
+}
+
+
+/***/ }),
+
+/***/ 317:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
 
-var isStream = module.exports = function (stream) {
-	return stream !== null && typeof stream === 'object' && typeof stream.pipe === 'function';
-};
+Object.defineProperty(exports, '__esModule', { value: true });
 
-isStream.writable = function (stream) {
-	return isStream(stream) && stream.writable !== false && typeof stream._write === 'function' && typeof stream._writableState === 'object';
-};
+function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
-isStream.readable = function (stream) {
-	return isStream(stream) && stream.readable !== false && typeof stream._read === 'function' && typeof stream._readableState === 'object';
-};
+var endpoint = __webpack_require__(385);
+var universalUserAgent = __webpack_require__(392);
+var isPlainObject = _interopDefault(__webpack_require__(548));
+var nodeFetch = _interopDefault(__webpack_require__(369));
+var requestError = __webpack_require__(463);
 
-isStream.duplex = function (stream) {
-	return isStream.writable(stream) && isStream.readable(stream);
-};
+const VERSION = "5.3.2";
 
-isStream.transform = function (stream) {
-	return isStream.duplex(stream) && typeof stream._transform === 'function' && typeof stream._transformState === 'object';
+function getBufferResponse(response) {
+  return response.arrayBuffer();
+}
+
+function fetchWrapper(requestOptions) {
+  if (isPlainObject(requestOptions.body) || Array.isArray(requestOptions.body)) {
+    requestOptions.body = JSON.stringify(requestOptions.body);
+  }
+
+  let headers = {};
+  let status;
+  let url;
+  const fetch = requestOptions.request && requestOptions.request.fetch || nodeFetch;
+  return fetch(requestOptions.url, Object.assign({
+    method: requestOptions.method,
+    body: requestOptions.body,
+    headers: requestOptions.headers,
+    redirect: requestOptions.redirect
+  }, requestOptions.request)).then(response => {
+    url = response.url;
+    status = response.status;
+
+    for (const keyAndValue of response.headers) {
+      headers[keyAndValue[0]] = keyAndValue[1];
+    }
+
+    if (status === 204 || status === 205) {
+      return;
+    } // GitHub API returns 200 for HEAD requests
+
+
+    if (requestOptions.method === "HEAD") {
+      if (status < 400) {
+        return;
+      }
+
+      throw new requestError.RequestError(response.statusText, status, {
+        headers,
+        request: requestOptions
+      });
+    }
+
+    if (status === 304) {
+      throw new requestError.RequestError("Not modified", status, {
+        headers,
+        request: requestOptions
+      });
+    }
+
+    if (status >= 400) {
+      return response.text().then(message => {
+        const error = new requestError.RequestError(message, status, {
+          headers,
+          request: requestOptions
+        });
+
+        try {
+          let responseBody = JSON.parse(error.message);
+          Object.assign(error, responseBody);
+          let errors = responseBody.errors; // Assumption `errors` would always be in Array format
+
+          error.message = error.message + ": " + errors.map(JSON.stringify).join(", ");
+        } catch (e) {// ignore, see octokit/rest.js#684
+        }
+
+        throw error;
+      });
+    }
+
+    const contentType = response.headers.get("content-type");
+
+    if (/application\/json/.test(contentType)) {
+      return response.json();
+    }
+
+    if (!contentType || /^text\/|charset=utf-8$/.test(contentType)) {
+      return response.text();
+    }
+
+    return getBufferResponse(response);
+  }).then(data => {
+    return {
+      status,
+      url,
+      headers,
+      data
+    };
+  }).catch(error => {
+    if (error instanceof requestError.RequestError) {
+      throw error;
+    }
+
+    throw new requestError.RequestError(error.message, 500, {
+      headers,
+      request: requestOptions
+    });
+  });
+}
+
+function withDefaults(oldEndpoint, newDefaults) {
+  const endpoint = oldEndpoint.defaults(newDefaults);
+
+  const newApi = function (route, parameters) {
+    const endpointOptions = endpoint.merge(route, parameters);
+
+    if (!endpointOptions.request || !endpointOptions.request.hook) {
+      return fetchWrapper(endpoint.parse(endpointOptions));
+    }
+
+    const request = (route, parameters) => {
+      return fetchWrapper(endpoint.parse(endpoint.merge(route, parameters)));
+    };
+
+    Object.assign(request, {
+      endpoint,
+      defaults: withDefaults.bind(null, endpoint)
+    });
+    return endpointOptions.request.hook(request, endpointOptions);
+  };
+
+  return Object.assign(newApi, {
+    endpoint,
+    defaults: withDefaults.bind(null, endpoint)
+  });
+}
+
+const request = withDefaults(endpoint.endpoint, {
+  headers: {
+    "user-agent": `octokit-request.js/${VERSION} ${universalUserAgent.getUserAgent()}`
+  }
+});
+
+exports.request = request;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
+/***/ 323:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const is_1 = __webpack_require__(534);
+const as_promise_1 = __webpack_require__(616);
+const as_stream_1 = __webpack_require__(379);
+const errors = __webpack_require__(378);
+const normalize_arguments_1 = __webpack_require__(110);
+const deep_freeze_1 = __webpack_require__(291);
+const getPromiseOrStream = (options) => options.isStream ? as_stream_1.default(options) : as_promise_1.default(options);
+const isGotInstance = (value) => (Reflect.has(value, 'defaults') && Reflect.has(value.defaults, 'options'));
+const aliases = [
+    'get',
+    'post',
+    'put',
+    'patch',
+    'head',
+    'delete'
+];
+exports.defaultHandler = (options, next) => next(options);
+const create = (defaults) => {
+    // Proxy properties from next handlers
+    defaults._rawHandlers = defaults.handlers;
+    defaults.handlers = defaults.handlers.map(fn => ((options, next) => {
+        // This will be assigned by assigning result
+        let root;
+        const result = fn(options, newOptions => {
+            root = next(newOptions);
+            return root;
+        });
+        if (result !== root && !options.isStream && root) {
+            const typedResult = result;
+            const { then: promiseThen, catch: promiseCatch, finally: promiseFianlly } = typedResult;
+            Object.setPrototypeOf(typedResult, Object.getPrototypeOf(root));
+            Object.defineProperties(typedResult, Object.getOwnPropertyDescriptors(root));
+            // These should point to the new promise
+            // eslint-disable-next-line promise/prefer-await-to-then
+            typedResult.then = promiseThen;
+            typedResult.catch = promiseCatch;
+            typedResult.finally = promiseFianlly;
+        }
+        return result;
+    }));
+    // @ts-ignore Because the for loop handles it for us, as well as the other Object.defines
+    const got = (url, options) => {
+        var _a;
+        let iteration = 0;
+        const iterateHandlers = (newOptions) => {
+            return defaults.handlers[iteration++](newOptions, iteration === defaults.handlers.length ? getPromiseOrStream : iterateHandlers);
+        };
+        /* eslint-disable @typescript-eslint/return-await */
+        try {
+            return iterateHandlers(normalize_arguments_1.normalizeArguments(url, options, defaults));
+        }
+        catch (error) {
+            if ((_a = options) === null || _a === void 0 ? void 0 : _a.isStream) {
+                throw error;
+            }
+            else {
+                // @ts-ignore It's an Error not a response, but TS thinks it's calling .resolve
+                return as_promise_1.createRejection(error);
+            }
+        }
+        /* eslint-enable @typescript-eslint/return-await */
+    };
+    got.extend = (...instancesOrOptions) => {
+        const optionsArray = [defaults.options];
+        let handlers = [...defaults._rawHandlers];
+        let isMutableDefaults;
+        for (const value of instancesOrOptions) {
+            if (isGotInstance(value)) {
+                optionsArray.push(value.defaults.options);
+                handlers.push(...value.defaults._rawHandlers);
+                isMutableDefaults = value.defaults.mutableDefaults;
+            }
+            else {
+                optionsArray.push(value);
+                if (Reflect.has(value, 'handlers')) {
+                    handlers.push(...value.handlers);
+                }
+                isMutableDefaults = value.mutableDefaults;
+            }
+        }
+        handlers = handlers.filter(handler => handler !== exports.defaultHandler);
+        if (handlers.length === 0) {
+            handlers.push(exports.defaultHandler);
+        }
+        return create({
+            options: normalize_arguments_1.mergeOptions(...optionsArray),
+            handlers,
+            mutableDefaults: Boolean(isMutableDefaults)
+        });
+    };
+    // @ts-ignore The missing methods because the for-loop handles it for us
+    got.stream = (url, options) => got(url, { ...options, isStream: true });
+    for (const method of aliases) {
+        // @ts-ignore Cannot properly type a function with multiple definitions yet
+        got[method] = (url, options) => got(url, { ...options, method });
+        got.stream[method] = (url, options) => got.stream(url, { ...options, method });
+    }
+    // @ts-ignore The missing property is added below
+    got.paginate = async function* (url, options) {
+        let normalizedOptions = normalize_arguments_1.normalizeArguments(url, options, defaults);
+        const pagination = normalizedOptions._pagination;
+        if (!is_1.default.object(pagination)) {
+            throw new Error('`options._pagination` must be implemented');
+        }
+        const all = [];
+        while (true) {
+            // @ts-ignore See https://github.com/sindresorhus/got/issues/954
+            // eslint-disable-next-line no-await-in-loop
+            const result = await got(normalizedOptions);
+            // eslint-disable-next-line no-await-in-loop
+            const parsed = await pagination.transform(result);
+            for (const item of parsed) {
+                if (pagination.filter(item, all)) {
+                    if (!pagination.shouldContinue(item, all)) {
+                        return;
+                    }
+                    yield item;
+                    all.push(item);
+                    if (all.length === pagination.countLimit) {
+                        return;
+                    }
+                }
+            }
+            const optionsToMerge = pagination.paginate(result);
+            if (optionsToMerge === false) {
+                return;
+            }
+            if (optionsToMerge !== undefined) {
+                normalizedOptions = normalize_arguments_1.normalizeArguments(normalizedOptions, optionsToMerge);
+            }
+        }
+    };
+    got.paginate.all = async (url, options) => {
+        const results = [];
+        for await (const item of got.paginate(url, options)) {
+            results.push(item);
+        }
+        return results;
+    };
+    Object.assign(got, { ...errors, mergeOptions: normalize_arguments_1.mergeOptions });
+    Object.defineProperty(got, 'defaults', {
+        value: defaults.mutableDefaults ? defaults : deep_freeze_1.default(defaults),
+        writable: defaults.mutableDefaults,
+        configurable: defaults.mutableDefaults,
+        enumerable: true
+    });
+    return got;
 };
+exports.default = create;
 
 
 /***/ }),
@@ -6955,7 +7573,7 @@ const core = __importStar(__webpack_require__(470));
 const fs_1 = __webpack_require__(747);
 const path = __importStar(__webpack_require__(622));
 const default_index_html_1 = __webpack_require__(995);
-exports.SCRIPT_PREFIX = 'window.TIMING_DATA = ';
+exports.SCRIPT_PREFIX = "window.TIMING_DATA = ";
 const DEFAULT_DATA_JSON = {
     lastUpdate: 0,
     entries: []
@@ -6963,7 +7581,7 @@ const DEFAULT_DATA_JSON = {
 function loadData(dataPath) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const script = yield fs_1.promises.readFile(dataPath, 'utf8');
+            const script = yield fs_1.promises.readFile(dataPath, "utf8");
             const json = script.slice(exports.SCRIPT_PREFIX.length);
             const parsed = JSON.parse(json);
             core.debug(`Loaded JSON from ${dataPath}`);
@@ -6979,7 +7597,7 @@ function addTimingDataToJson(data, timings) {
     const currentTime = Date.now();
     data.lastUpdate = currentTime;
     Object.entries(timings)
-        .filter(([key, value]) => value !== undefined && key !== 'total')
+        .filter(([key, value]) => value !== undefined && key !== "total")
         .map(([key, value]) => {
         const newEntry = [currentTime, value];
         const existingIndex = data.entries.findIndex(entry => entry.name === key);
@@ -6995,21 +7613,21 @@ function addTimingDataToJson(data, timings) {
 function storeDataJson(dataPath, data) {
     return __awaiter(this, void 0, void 0, function* () {
         const script = exports.SCRIPT_PREFIX + JSON.stringify(data, null, 2);
-        yield fs_1.promises.writeFile(dataPath, script, 'utf8');
+        yield fs_1.promises.writeFile(dataPath, script, "utf8");
         core.debug(`Wrote a new ${dataPath} file`);
     });
 }
 function writeTimings(timings) {
     return __awaiter(this, void 0, void 0, function* () {
-        const buildPath = path.join(process.cwd(), 'build');
-        const dataPath = path.join(buildPath, 'data.js');
+        const buildPath = path.join(process.cwd(), "build");
+        const dataPath = path.join(buildPath, "data.js");
         yield fs_1.promises.mkdir(buildPath);
-        const prevDataPath = path.join(process.cwd(), 'data.js');
+        const prevDataPath = path.join(process.cwd(), "data.js");
         const prevTimingData = yield loadData(prevDataPath);
         const newTimingData = addTimingDataToJson(prevTimingData, timings);
         yield storeDataJson(dataPath, newTimingData);
-        const htmlPath = path.join(buildPath, 'index.html');
-        yield fs_1.promises.writeFile(htmlPath, default_index_html_1.DEFAULT_INDEX_HTML, { flag: 'w' });
+        const htmlPath = path.join(buildPath, "index.html");
+        yield fs_1.promises.writeFile(htmlPath, default_index_html_1.DEFAULT_INDEX_HTML, { flag: "w" });
     });
 }
 exports.writeTimings = writeTimings;
@@ -7268,7 +7886,7 @@ function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'defau
 var Stream = _interopDefault(__webpack_require__(413));
 var http = _interopDefault(__webpack_require__(605));
 var Url = _interopDefault(__webpack_require__(835));
-var https = _interopDefault(__webpack_require__(34));
+var https = _interopDefault(__webpack_require__(211));
 var zlib = _interopDefault(__webpack_require__(761));
 
 // Based on https://github.com/tmpvar/jsdom/blob/aa85b2abf07766ff7bf5c1f6daafb3726f2f2db5/lib/jsdom/living/blob.js
@@ -9224,58 +9842,6 @@ exports.default = asStream;
 
 /***/ }),
 
-/***/ 381:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-const pFinally = __webpack_require__(697);
-
-class TimeoutError extends Error {
-	constructor(message) {
-		super(message);
-		this.name = 'TimeoutError';
-	}
-}
-
-module.exports = (promise, ms, fallback) => new Promise((resolve, reject) => {
-	if (typeof ms !== 'number' || ms < 0) {
-		throw new TypeError('Expected `ms` to be a positive number');
-	}
-
-	const timer = setTimeout(() => {
-		if (typeof fallback === 'function') {
-			try {
-				resolve(fallback());
-			} catch (err) {
-				reject(err);
-			}
-			return;
-		}
-
-		const message = typeof fallback === 'string' ? fallback : `Promise timed out after ${ms} milliseconds`;
-		const err = fallback instanceof Error ? fallback : new TimeoutError(message);
-
-		if (typeof promise.cancel === 'function') {
-			promise.cancel();
-		}
-
-		reject(err);
-	}, ms);
-
-	pFinally(
-		promise.then(resolve, reject),
-		() => {
-			clearTimeout(timer);
-		}
-	);
-});
-
-module.exports.TimeoutError = TimeoutError;
-
-
-/***/ }),
-
 /***/ 385:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -9703,12 +10269,42 @@ module.exports = readShebang;
 
 /***/ }),
 
+/***/ 392:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
+
+var osName = _interopDefault(__webpack_require__(2));
+
+function getUserAgent() {
+  try {
+    return `Node.js/${process.version.substr(1)} (${osName()}; ${process.arch})`;
+  } catch (error) {
+    if (/wmic os get Caption/.test(error.message)) {
+      return "Windows <version undetectable>";
+    }
+
+    return "<environment undetectable>";
+  }
+}
+
+exports.getUserAgent = getUserAgent;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
 /***/ 402:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 module.exports = Octokit;
 
-const { request } = __webpack_require__(753);
+const { request } = __webpack_require__(317);
 const Hook = __webpack_require__(523);
 
 const parseClientOptions = __webpack_require__(294);
@@ -9907,7 +10503,7 @@ function escapeProperty(s) {
 /***/ 453:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-var once = __webpack_require__(969)
+var once = __webpack_require__(49)
 var eos = __webpack_require__(9)
 var fs = __webpack_require__(747) // we only need fs to get the ReadStream and WriteStream prototypes
 
@@ -10057,7 +10653,7 @@ Object.defineProperty(exports, '__esModule', { value: true });
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var deprecation = __webpack_require__(692);
-var once = _interopDefault(__webpack_require__(969));
+var once = _interopDefault(__webpack_require__(49));
 
 const logOnce = once(deprecation => console.warn(deprecation));
 /**
@@ -10491,57 +11087,117 @@ module.exports = object => {
 
 /***/ }),
 
-/***/ 489:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ 478:
+/***/ (function(module) {
 
 "use strict";
 
 
-const path = __webpack_require__(622);
-const which = __webpack_require__(814);
-const pathKey = __webpack_require__(39)();
+const isWin = process.platform === 'win32';
 
-function resolveCommandAttempt(parsed, withoutPathExt) {
-    const cwd = process.cwd();
-    const hasCustomCwd = parsed.options.cwd != null;
+function notFoundError(original, syscall) {
+    return Object.assign(new Error(`${syscall} ${original.command} ENOENT`), {
+        code: 'ENOENT',
+        errno: 'ENOENT',
+        syscall: `${syscall} ${original.command}`,
+        path: original.command,
+        spawnargs: original.args,
+    });
+}
 
-    // If a custom `cwd` was specified, we need to change the process cwd
-    // because `which` will do stat calls but does not support a custom cwd
-    if (hasCustomCwd) {
-        try {
-            process.chdir(parsed.options.cwd);
-        } catch (err) {
-            /* Empty */
+function hookChildProcess(cp, parsed) {
+    if (!isWin) {
+        return;
+    }
+
+    const originalEmit = cp.emit;
+
+    cp.emit = function (name, arg1) {
+        // If emitting "exit" event and exit code is 1, we need to check if
+        // the command exists and emit an "error" instead
+        // See https://github.com/IndigoUnited/node-cross-spawn/issues/16
+        if (name === 'exit') {
+            const err = verifyENOENT(arg1, parsed, 'spawn');
+
+            if (err) {
+                return originalEmit.call(cp, 'error', err);
+            }
         }
-    }
 
-    let resolved;
-
-    try {
-        resolved = which.sync(parsed.command, {
-            path: (parsed.options.env || process.env)[pathKey],
-            pathExt: withoutPathExt ? path.delimiter : undefined,
-        });
-    } catch (e) {
-        /* Empty */
-    } finally {
-        process.chdir(cwd);
-    }
-
-    // If we successfully resolved, ensure that an absolute path is returned
-    // Note that when a custom `cwd` was used, we need to resolve to an absolute path based on it
-    if (resolved) {
-        resolved = path.resolve(hasCustomCwd ? parsed.options.cwd : '', resolved);
-    }
-
-    return resolved;
+        return originalEmit.apply(cp, arguments); // eslint-disable-line prefer-rest-params
+    };
 }
 
-function resolveCommand(parsed) {
-    return resolveCommandAttempt(parsed) || resolveCommandAttempt(parsed, true);
+function verifyENOENT(status, parsed) {
+    if (isWin && status === 1 && !parsed.file) {
+        return notFoundError(parsed.original, 'spawn');
+    }
+
+    return null;
 }
 
-module.exports = resolveCommand;
+function verifyENOENTSync(status, parsed) {
+    if (isWin && status === 1 && !parsed.file) {
+        return notFoundError(parsed.original, 'spawnSync');
+    }
+
+    return null;
+}
+
+module.exports = {
+    hookChildProcess,
+    verifyENOENT,
+    verifyENOENTSync,
+    notFoundError,
+};
+
+
+/***/ }),
+
+/***/ 489:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const stream_1 = __webpack_require__(413);
+const is_1 = __webpack_require__(534);
+function createProgressStream(name, emitter, totalBytes) {
+    let transformedBytes = 0;
+    if (is_1.default.string(totalBytes)) {
+        totalBytes = Number(totalBytes);
+    }
+    const progressStream = new stream_1.Transform({
+        transform(chunk, _encoding, callback) {
+            transformedBytes += chunk.length;
+            const percent = totalBytes ? transformedBytes / totalBytes : 0;
+            // Let `flush()` be responsible for emitting the last event
+            if (percent < 1) {
+                emitter.emit(name, {
+                    percent,
+                    transferred: transformedBytes,
+                    total: totalBytes
+                });
+            }
+            callback(undefined, chunk);
+        },
+        flush(callback) {
+            emitter.emit(name, {
+                percent: 1,
+                transferred: transformedBytes,
+                total: totalBytes
+            });
+            callback();
+        }
+    });
+    emitter.emit(name, {
+        percent: 0,
+        transferred: 0,
+        total: totalBytes
+    });
+    return progressStream;
+}
+exports.createProgressStream = createProgressStream;
 
 
 /***/ }),
@@ -10667,6 +11323,58 @@ exports.default = timer;
 // For CommonJS default export support
 module.exports = timer;
 module.exports.default = timer;
+
+
+/***/ }),
+
+/***/ 494:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const os = __webpack_require__(87);
+const execa = __webpack_require__(955);
+
+// Reference: https://www.gaijin.at/en/lstwinver.php
+const names = new Map([
+	['10.0', '10'],
+	['6.3', '8.1'],
+	['6.2', '8'],
+	['6.1', '7'],
+	['6.0', 'Vista'],
+	['5.2', 'Server 2003'],
+	['5.1', 'XP'],
+	['5.0', '2000'],
+	['4.9', 'ME'],
+	['4.1', '98'],
+	['4.0', '95']
+]);
+
+const windowsRelease = release => {
+	const version = /\d+\.\d/.exec(release || os.release());
+
+	if (release && !version) {
+		throw new Error('`release` argument doesn\'t match `n.n`');
+	}
+
+	const ver = (version || [])[0];
+
+	// Server 2008, 2012 and 2016 versions are ambiguous with desktop versions and must be detected at runtime.
+	// If `release` is omitted or we're on a Windows system, and the version number is an ambiguous version
+	// then use `wmic` to get the OS caption: https://msdn.microsoft.com/en-us/library/aa394531(v=vs.85).aspx
+	// If the resulting caption contains the year 2008, 2012 or 2016, it is a server version, so return a server OS name.
+	if ((!release || release === os.release()) && ['6.1', '6.2', '6.3', '10.0'].includes(ver)) {
+		const stdout = execa.sync('wmic', ['os', 'get', 'Caption']).stdout || '';
+		const year = (stdout.match(/2008|2012|2016/) || [])[0];
+		if (year) {
+			return `Server ${year}`;
+		}
+	}
+
+	return names.get(ver);
+};
+
+module.exports = windowsRelease;
 
 
 /***/ }),
@@ -11186,7 +11894,7 @@ function hasFirstPage (link) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const url = __webpack_require__(835);
 const http = __webpack_require__(605);
-const https = __webpack_require__(34);
+const https = __webpack_require__(211);
 const pm = __webpack_require__(950);
 let tunnel;
 var HttpCodes;
@@ -11568,7 +12276,7 @@ class HttpClient {
         if (useProxy) {
             // If using proxy, need tunnel
             if (!tunnel) {
-                tunnel = __webpack_require__(856);
+                tunnel = __webpack_require__(988);
             }
             const agentOptions = {
                 maxSockets: maxSockets,
@@ -11939,7 +12647,7 @@ function getPreviousPage (octokit, link, headers) {
 
 const path = __webpack_require__(622);
 const niceTry = __webpack_require__(948);
-const resolveCommand = __webpack_require__(489);
+const resolveCommand = __webpack_require__(71);
 const escape = __webpack_require__(462);
 const readShebang = __webpack_require__(389);
 const semver = __webpack_require__(48);
@@ -12086,226 +12794,51 @@ function getPageLinks (link) {
 
 /***/ }),
 
-/***/ 603:
+/***/ 587:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-"use strict";
+module.exports = isexe
+isexe.sync = sync
 
-const {Resolver, V4MAPPED, ADDRCONFIG} = __webpack_require__(819);
-const {promisify} = __webpack_require__(669);
-const os = __webpack_require__(87);
-const Keyv = __webpack_require__(303);
+var fs = __webpack_require__(747)
 
-const kCacheableLookupData = Symbol('cacheableLookupData');
-const kCacheableLookupInstance = Symbol('cacheableLookupInstance');
+function checkPathExt (path, options) {
+  var pathext = options.pathExt !== undefined ?
+    options.pathExt : process.env.PATHEXT
 
-const verifyAgent = agent => {
-	if (!(agent && typeof agent.createConnection === 'function')) {
-		throw new Error('Expected an Agent instance as the first argument');
-	}
-};
+  if (!pathext) {
+    return true
+  }
 
-const map4to6 = entries => {
-	for (const entry of entries) {
-		entry.address = `::ffff:${entry.address}`;
-		entry.family = 6;
-	}
-};
-
-const getIfaceInfo = () => {
-	let has4 = false;
-	let has6 = false;
-
-	for (const device of Object.values(os.networkInterfaces())) {
-		for (const iface of device) {
-			if (iface.internal) {
-				continue;
-			}
-
-			if (iface.family === 'IPv6') {
-				has6 = true;
-			} else {
-				has4 = true;
-			}
-
-			if (has4 && has6) {
-				break;
-			}
-		}
-	}
-
-	return {has4, has6};
-};
-
-class CacheableLookup {
-	constructor({cacheAdapter, maxTtl = Infinity, resolver} = {}) {
-		this.cache = new Keyv({
-			uri: typeof cacheAdapter === 'string' && cacheAdapter,
-			store: typeof cacheAdapter !== 'string' && cacheAdapter,
-			namespace: 'cached-lookup'
-		});
-
-		this.maxTtl = maxTtl;
-
-		this._resolver = resolver || new Resolver();
-		this._resolve4 = promisify(this._resolver.resolve4.bind(this._resolver));
-		this._resolve6 = promisify(this._resolver.resolve6.bind(this._resolver));
-
-		this._iface = getIfaceInfo();
-
-		this.lookup = this.lookup.bind(this);
-		this.lookupAsync = this.lookupAsync.bind(this);
-	}
-
-	set servers(servers) {
-		this._resolver.setServers(servers);
-	}
-
-	get servers() {
-		return this._resolver.getServers();
-	}
-
-	lookup(hostname, options, callback) {
-		if (typeof options === 'function') {
-			callback = options;
-			options = {};
-		}
-
-		// eslint-disable-next-line promise/prefer-await-to-then
-		this.lookupAsync(hostname, {...options, throwNotFound: true}).then(result => {
-			if (options.all) {
-				callback(null, result);
-			} else {
-				callback(null, result.address, result.family, result.expires, result.ttl);
-			}
-		}).catch(callback);
-	}
-
-	async lookupAsync(hostname, options = {}) {
-		let cached;
-		if (!options.family && options.all) {
-			const [cached4, cached6] = await Promise.all([this.lookupAsync(hostname, {all: true, family: 4}), this.lookupAsync(hostname, {all: true, family: 6})]);
-			cached = [...cached4, ...cached6];
-		} else {
-			cached = await this.query(hostname, options.family || 4);
-
-			if (cached.length === 0 && options.family === 6 && options.hints & V4MAPPED) {
-				cached = await this.query(hostname, 4);
-				map4to6(cached);
-			}
-		}
-
-		if (options.hints & ADDRCONFIG) {
-			const {_iface} = this;
-			cached = cached.filter(entry => entry.family === 6 ? _iface.has6 : _iface.has4);
-		}
-
-		if (cached.length === 0 && options.throwNotFound) {
-			const error = new Error(`ENOTFOUND ${hostname}`);
-			error.code = 'ENOTFOUND';
-			error.hostname = hostname;
-
-			throw error;
-		}
-
-		const now = Date.now();
-		cached = cached.filter(entry => entry.ttl === 0 || now < entry.expires);
-
-		if (options.all) {
-			return cached;
-		}
-
-		if (cached.length === 1) {
-			return cached[0];
-		}
-
-		if (cached.length === 0) {
-			return undefined;
-		}
-
-		return this._getEntry(cached);
-	}
-
-	async query(hostname, family) {
-		let cached = await this.cache.get(`${hostname}:${family}`);
-		if (!cached) {
-			cached = await this.queryAndCache(hostname, family);
-		}
-
-		return cached;
-	}
-
-	async queryAndCache(hostname, family) {
-		const resolve = family === 4 ? this._resolve4 : this._resolve6;
-		const entries = await resolve(hostname, {ttl: true});
-
-		if (entries === undefined) {
-			return [];
-		}
-
-		const now = Date.now();
-
-		let cacheTtl = 0;
-		for (const entry of entries) {
-			cacheTtl = Math.max(cacheTtl, entry.ttl);
-			entry.family = family;
-			entry.expires = now + (entry.ttl * 1000);
-		}
-
-		cacheTtl = Math.min(this.maxTtl, cacheTtl) * 1000;
-
-		if (this.maxTtl !== 0 && cacheTtl !== 0) {
-			await this.cache.set(`${hostname}:${family}`, entries, cacheTtl);
-		}
-
-		return entries;
-	}
-
-	_getEntry(entries) {
-		return entries[Math.floor(Math.random() * entries.length)];
-	}
-
-	install(agent) {
-		verifyAgent(agent);
-
-		if (kCacheableLookupData in agent) {
-			throw new Error('CacheableLookup has been already installed');
-		}
-
-		agent[kCacheableLookupData] = agent.createConnection;
-		agent[kCacheableLookupInstance] = this;
-
-		agent.createConnection = (options, callback) => {
-			if (!('lookup' in options)) {
-				options.lookup = this.lookup;
-			}
-
-			return agent[kCacheableLookupData](options, callback);
-		};
-	}
-
-	uninstall(agent) {
-		verifyAgent(agent);
-
-		if (agent[kCacheableLookupData]) {
-			if (agent[kCacheableLookupInstance] !== this) {
-				throw new Error('The agent is not owned by this CacheableLookup instance');
-			}
-
-			agent.createConnection = agent[kCacheableLookupData];
-
-			delete agent[kCacheableLookupData];
-			delete agent[kCacheableLookupInstance];
-		}
-	}
-
-	updateInterfaceInfo() {
-		this._iface = getIfaceInfo();
-	}
+  pathext = pathext.split(';')
+  if (pathext.indexOf('') !== -1) {
+    return true
+  }
+  for (var i = 0; i < pathext.length; i++) {
+    var p = pathext[i].toLowerCase()
+    if (p && path.substr(-p.length).toLowerCase() === p) {
+      return true
+    }
+  }
+  return false
 }
 
-module.exports = CacheableLookup;
-module.exports.default = CacheableLookup;
+function checkStat (stat, path, options) {
+  if (!stat.isSymbolicLink() && !stat.isFile()) {
+    return false
+  }
+  return checkPathExt(path, options)
+}
+
+function isexe (path, options, cb) {
+  fs.stat(path, function (er, stat) {
+    cb(er, er ? false : checkStat(stat, path, options))
+  })
+}
+
+function sync (path, options) {
+  return checkStat(fs.statSync(path), path, options)
+}
 
 
 /***/ }),
@@ -12613,36 +13146,6 @@ module.exports = require("net");
 
 /***/ }),
 
-/***/ 645:
-/***/ (function(__unusedmodule, exports) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-// When attaching listeners, it's very easy to forget about them.
-// Especially if you do error handling and set timeouts.
-// So instead of checking if it's proper to throw an error on every timeout ever,
-// use this simple tool which will remove all listeners you have attached.
-exports.default = () => {
-    const handlers = [];
-    return {
-        once(origin, event, fn) {
-            origin.once(event, fn);
-            handlers.push({ origin, event, fn });
-        },
-        unhandleAll() {
-            for (const handler of handlers) {
-                const { origin, event, fn } = handler;
-                origin.removeListener(event, fn);
-            }
-            handlers.length = 0;
-        }
-    };
-};
-
-
-/***/ }),
-
 /***/ 647:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -12715,241 +13218,82 @@ function getLastPage (octokit, link, headers) {
 /***/ }),
 
 /***/ 654:
-/***/ (function(module) {
-
-// This is not the set of all possible signals.
-//
-// It IS, however, the set of all signals that trigger
-// an exit on either Linux or BSD systems.  Linux is a
-// superset of the signal names supported on BSD, and
-// the unknown signals just fail to register, so we can
-// catch that easily enough.
-//
-// Don't bother with SIGKILL.  It's uncatchable, which
-// means that we can't fire any callbacks anyway.
-//
-// If a user does happen to register a handler on a non-
-// fatal signal like SIGWINCH or something, and then
-// exit, it'll end up firing `process.emit('exit')`, so
-// the handler will be fired anyway.
-//
-// SIGBUS, SIGFPE, SIGSEGV and SIGILL, when not raised
-// artificially, inherently leave the process in a
-// state from which it is not safe to try and enter JS
-// listeners.
-module.exports = [
-  'SIGABRT',
-  'SIGALRM',
-  'SIGHUP',
-  'SIGINT',
-  'SIGTERM'
-]
-
-if (process.platform !== 'win32') {
-  module.exports.push(
-    'SIGVTALRM',
-    'SIGXCPU',
-    'SIGXFSZ',
-    'SIGUSR2',
-    'SIGTRAP',
-    'SIGSYS',
-    'SIGQUIT',
-    'SIGIOT'
-    // should detect profiler and enable/disable accordingly.
-    // see #21
-    // 'SIGPROF'
-  )
-}
-
-if (process.platform === 'linux') {
-  module.exports.push(
-    'SIGIO',
-    'SIGPOLL',
-    'SIGPWR',
-    'SIGSTKFLT',
-    'SIGUNUSED'
-  )
-}
-
-
-/***/ }),
-
-/***/ 662:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
+/***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
-const stream_1 = __webpack_require__(413);
-const is_1 = __webpack_require__(534);
-function createProgressStream(name, emitter, totalBytes) {
-    let transformedBytes = 0;
-    if (is_1.default.string(totalBytes)) {
-        totalBytes = Number(totalBytes);
-    }
-    const progressStream = new stream_1.Transform({
-        transform(chunk, _encoding, callback) {
-            transformedBytes += chunk.length;
-            const percent = totalBytes ? transformedBytes / totalBytes : 0;
-            // Let `flush()` be responsible for emitting the last event
-            if (percent < 1) {
-                emitter.emit(name, {
-                    percent,
-                    transferred: transformedBytes,
-                    total: totalBytes
-                });
-            }
-            callback(undefined, chunk);
-        },
-        flush(callback) {
-            emitter.emit(name, {
-                percent: 1,
-                transferred: transformedBytes,
-                total: totalBytes
-            });
-            callback();
-        }
-    });
-    emitter.emit(name, {
-        percent: 0,
-        transferred: 0,
-        total: totalBytes
-    });
-    return progressStream;
+const pFinally = __webpack_require__(697);
+
+class TimeoutError extends Error {
+	constructor(message) {
+		super(message);
+		this.name = 'TimeoutError';
+	}
 }
-exports.createProgressStream = createProgressStream;
+
+module.exports = (promise, ms, fallback) => new Promise((resolve, reject) => {
+	if (typeof ms !== 'number' || ms < 0) {
+		throw new TypeError('Expected `ms` to be a positive number');
+	}
+
+	const timer = setTimeout(() => {
+		if (typeof fallback === 'function') {
+			try {
+				resolve(fallback());
+			} catch (err) {
+				reject(err);
+			}
+			return;
+		}
+
+		const message = typeof fallback === 'string' ? fallback : `Promise timed out after ${ms} milliseconds`;
+		const err = fallback instanceof Error ? fallback : new TimeoutError(message);
+
+		if (typeof promise.cancel === 'function') {
+			promise.cancel();
+		}
+
+		reject(err);
+	}, ms);
+
+	pFinally(
+		promise.then(resolve, reject),
+		() => {
+			clearTimeout(timer);
+		}
+	);
+});
+
+module.exports.TimeoutError = TimeoutError;
 
 
 /***/ }),
 
 /***/ 668:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const net = __webpack_require__(631);
-const unhandle_1 = __webpack_require__(645);
-const reentry = Symbol('reentry');
-const noop = () => { };
-class TimeoutError extends Error {
-    constructor(threshold, event) {
-        super(`Timeout awaiting '${event}' for ${threshold}ms`);
-        this.event = event;
-        this.name = 'TimeoutError';
-        this.code = 'ETIMEDOUT';
-    }
-}
-exports.TimeoutError = TimeoutError;
-exports.default = (request, delays, options) => {
-    if (Reflect.has(request, reentry)) {
-        return noop;
-    }
-    request[reentry] = true;
-    const cancelers = [];
-    const { once, unhandleAll } = unhandle_1.default();
-    const addTimeout = (delay, callback, event) => {
-        var _a, _b;
-        const timeout = setTimeout(callback, delay, delay, event);
-        (_b = (_a = timeout).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
-        const cancel = () => {
-            clearTimeout(timeout);
-        };
-        cancelers.push(cancel);
-        return cancel;
+// When attaching listeners, it's very easy to forget about them.
+// Especially if you do error handling and set timeouts.
+// So instead of checking if it's proper to throw an error on every timeout ever,
+// use this simple tool which will remove all listeners you have attached.
+exports.default = () => {
+    const handlers = [];
+    return {
+        once(origin, event, fn) {
+            origin.once(event, fn);
+            handlers.push({ origin, event, fn });
+        },
+        unhandleAll() {
+            for (const handler of handlers) {
+                const { origin, event, fn } = handler;
+                origin.removeListener(event, fn);
+            }
+            handlers.length = 0;
+        }
     };
-    const { host, hostname } = options;
-    const timeoutHandler = (delay, event) => {
-        if (request.socket) {
-            // @ts-ignore We do not want the `socket hang up` error
-            request.socket._hadError = true;
-        }
-        request.abort();
-        request.emit('error', new TimeoutError(delay, event));
-    };
-    const cancelTimeouts = () => {
-        for (const cancel of cancelers) {
-            cancel();
-        }
-        unhandleAll();
-    };
-    request.once('error', error => {
-        cancelTimeouts();
-        // Save original behavior
-        if (request.listenerCount('error') === 0) {
-            throw error;
-        }
-    });
-    request.once('abort', cancelTimeouts);
-    once(request, 'response', (response) => {
-        once(response, 'end', cancelTimeouts);
-    });
-    if (typeof delays.request !== 'undefined') {
-        addTimeout(delays.request, timeoutHandler, 'request');
-    }
-    if (typeof delays.socket !== 'undefined') {
-        const socketTimeoutHandler = () => {
-            timeoutHandler(delays.socket, 'socket');
-        };
-        request.setTimeout(delays.socket, socketTimeoutHandler);
-        // `request.setTimeout(0)` causes a memory leak.
-        // We can just remove the listener and forget about the timer - it's unreffed.
-        // See https://github.com/sindresorhus/got/issues/690
-        cancelers.push(() => {
-            request.removeListener('timeout', socketTimeoutHandler);
-        });
-    }
-    once(request, 'socket', (socket) => {
-        var _a;
-        // @ts-ignore Node typings doesn't have this property
-        const { socketPath } = request;
-        /* istanbul ignore next: hard to test */
-        if (socket.connecting) {
-            const hasPath = Boolean((socketPath !== null && socketPath !== void 0 ? socketPath : net.isIP((_a = (hostname !== null && hostname !== void 0 ? hostname : host), (_a !== null && _a !== void 0 ? _a : ''))) !== 0));
-            if (typeof delays.lookup !== 'undefined' && !hasPath && typeof socket.address().address === 'undefined') {
-                const cancelTimeout = addTimeout(delays.lookup, timeoutHandler, 'lookup');
-                once(socket, 'lookup', cancelTimeout);
-            }
-            if (typeof delays.connect !== 'undefined') {
-                const timeConnect = () => addTimeout(delays.connect, timeoutHandler, 'connect');
-                if (hasPath) {
-                    once(socket, 'connect', timeConnect());
-                }
-                else {
-                    once(socket, 'lookup', (error) => {
-                        if (error === null) {
-                            once(socket, 'connect', timeConnect());
-                        }
-                    });
-                }
-            }
-            if (typeof delays.secureConnect !== 'undefined' && options.protocol === 'https:') {
-                once(socket, 'connect', () => {
-                    const cancelTimeout = addTimeout(delays.secureConnect, timeoutHandler, 'secureConnect');
-                    once(socket, 'secureConnect', cancelTimeout);
-                });
-            }
-        }
-        if (typeof delays.send !== 'undefined') {
-            const timeRequest = () => addTimeout(delays.send, timeoutHandler, 'send');
-            /* istanbul ignore next: hard to test */
-            if (socket.connecting) {
-                once(socket, 'connect', () => {
-                    once(request, 'upload-complete', timeRequest());
-                });
-            }
-            else {
-                once(request, 'upload-complete', timeRequest());
-            }
-        }
-    });
-    if (typeof delays.response !== 'undefined') {
-        once(request, 'upload-complete', () => {
-            const cancelTimeout = addTimeout(delays.response, timeoutHandler, 'response');
-            once(request, 'response', cancelTimeout);
-        });
-    }
-    return cancelTimeouts;
 };
 
 
@@ -13170,7 +13514,7 @@ function isUnixExecutable(stats) {
 module.exports = authenticate;
 
 const { Deprecation } = __webpack_require__(692);
-const once = __webpack_require__(969);
+const once = __webpack_require__(49);
 
 const deprecateAuthenticate = once((log, deprecation) => log.warn(deprecation));
 
@@ -14081,7 +14425,7 @@ module.exports.DuplexWrapper = DuplexWrapper;
 var fs = __webpack_require__(747)
 var core
 if (process.platform === 'win32' || global.TESTING_WINDOWS) {
-  core = __webpack_require__(818)
+  core = __webpack_require__(587)
 } else {
   core = __webpack_require__(197)
 }
@@ -14147,157 +14491,225 @@ module.exports = require("fs");
 /***/ }),
 
 /***/ 753:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
+/***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
+const {Resolver, V4MAPPED, ADDRCONFIG} = __webpack_require__(881);
+const {promisify} = __webpack_require__(669);
+const os = __webpack_require__(87);
+const Keyv = __webpack_require__(303);
 
-Object.defineProperty(exports, '__esModule', { value: true });
+const kCacheableLookupData = Symbol('cacheableLookupData');
+const kCacheableLookupInstance = Symbol('cacheableLookupInstance');
 
-function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
+const verifyAgent = agent => {
+	if (!(agent && typeof agent.createConnection === 'function')) {
+		throw new Error('Expected an Agent instance as the first argument');
+	}
+};
 
-var endpoint = __webpack_require__(385);
-var universalUserAgent = __webpack_require__(211);
-var isPlainObject = _interopDefault(__webpack_require__(548));
-var nodeFetch = _interopDefault(__webpack_require__(369));
-var requestError = __webpack_require__(463);
+const map4to6 = entries => {
+	for (const entry of entries) {
+		entry.address = `::ffff:${entry.address}`;
+		entry.family = 6;
+	}
+};
 
-const VERSION = "5.3.2";
+const getIfaceInfo = () => {
+	let has4 = false;
+	let has6 = false;
 
-function getBufferResponse(response) {
-  return response.arrayBuffer();
+	for (const device of Object.values(os.networkInterfaces())) {
+		for (const iface of device) {
+			if (iface.internal) {
+				continue;
+			}
+
+			if (iface.family === 'IPv6') {
+				has6 = true;
+			} else {
+				has4 = true;
+			}
+
+			if (has4 && has6) {
+				break;
+			}
+		}
+	}
+
+	return {has4, has6};
+};
+
+class CacheableLookup {
+	constructor({cacheAdapter, maxTtl = Infinity, resolver} = {}) {
+		this.cache = new Keyv({
+			uri: typeof cacheAdapter === 'string' && cacheAdapter,
+			store: typeof cacheAdapter !== 'string' && cacheAdapter,
+			namespace: 'cached-lookup'
+		});
+
+		this.maxTtl = maxTtl;
+
+		this._resolver = resolver || new Resolver();
+		this._resolve4 = promisify(this._resolver.resolve4.bind(this._resolver));
+		this._resolve6 = promisify(this._resolver.resolve6.bind(this._resolver));
+
+		this._iface = getIfaceInfo();
+
+		this.lookup = this.lookup.bind(this);
+		this.lookupAsync = this.lookupAsync.bind(this);
+	}
+
+	set servers(servers) {
+		this._resolver.setServers(servers);
+	}
+
+	get servers() {
+		return this._resolver.getServers();
+	}
+
+	lookup(hostname, options, callback) {
+		if (typeof options === 'function') {
+			callback = options;
+			options = {};
+		}
+
+		// eslint-disable-next-line promise/prefer-await-to-then
+		this.lookupAsync(hostname, {...options, throwNotFound: true}).then(result => {
+			if (options.all) {
+				callback(null, result);
+			} else {
+				callback(null, result.address, result.family, result.expires, result.ttl);
+			}
+		}).catch(callback);
+	}
+
+	async lookupAsync(hostname, options = {}) {
+		let cached;
+		if (!options.family && options.all) {
+			const [cached4, cached6] = await Promise.all([this.lookupAsync(hostname, {all: true, family: 4}), this.lookupAsync(hostname, {all: true, family: 6})]);
+			cached = [...cached4, ...cached6];
+		} else {
+			cached = await this.query(hostname, options.family || 4);
+
+			if (cached.length === 0 && options.family === 6 && options.hints & V4MAPPED) {
+				cached = await this.query(hostname, 4);
+				map4to6(cached);
+			}
+		}
+
+		if (options.hints & ADDRCONFIG) {
+			const {_iface} = this;
+			cached = cached.filter(entry => entry.family === 6 ? _iface.has6 : _iface.has4);
+		}
+
+		if (cached.length === 0 && options.throwNotFound) {
+			const error = new Error(`ENOTFOUND ${hostname}`);
+			error.code = 'ENOTFOUND';
+			error.hostname = hostname;
+
+			throw error;
+		}
+
+		const now = Date.now();
+		cached = cached.filter(entry => entry.ttl === 0 || now < entry.expires);
+
+		if (options.all) {
+			return cached;
+		}
+
+		if (cached.length === 1) {
+			return cached[0];
+		}
+
+		if (cached.length === 0) {
+			return undefined;
+		}
+
+		return this._getEntry(cached);
+	}
+
+	async query(hostname, family) {
+		let cached = await this.cache.get(`${hostname}:${family}`);
+		if (!cached) {
+			cached = await this.queryAndCache(hostname, family);
+		}
+
+		return cached;
+	}
+
+	async queryAndCache(hostname, family) {
+		const resolve = family === 4 ? this._resolve4 : this._resolve6;
+		const entries = await resolve(hostname, {ttl: true});
+
+		if (entries === undefined) {
+			return [];
+		}
+
+		const now = Date.now();
+
+		let cacheTtl = 0;
+		for (const entry of entries) {
+			cacheTtl = Math.max(cacheTtl, entry.ttl);
+			entry.family = family;
+			entry.expires = now + (entry.ttl * 1000);
+		}
+
+		cacheTtl = Math.min(this.maxTtl, cacheTtl) * 1000;
+
+		if (this.maxTtl !== 0 && cacheTtl !== 0) {
+			await this.cache.set(`${hostname}:${family}`, entries, cacheTtl);
+		}
+
+		return entries;
+	}
+
+	_getEntry(entries) {
+		return entries[Math.floor(Math.random() * entries.length)];
+	}
+
+	install(agent) {
+		verifyAgent(agent);
+
+		if (kCacheableLookupData in agent) {
+			throw new Error('CacheableLookup has been already installed');
+		}
+
+		agent[kCacheableLookupData] = agent.createConnection;
+		agent[kCacheableLookupInstance] = this;
+
+		agent.createConnection = (options, callback) => {
+			if (!('lookup' in options)) {
+				options.lookup = this.lookup;
+			}
+
+			return agent[kCacheableLookupData](options, callback);
+		};
+	}
+
+	uninstall(agent) {
+		verifyAgent(agent);
+
+		if (agent[kCacheableLookupData]) {
+			if (agent[kCacheableLookupInstance] !== this) {
+				throw new Error('The agent is not owned by this CacheableLookup instance');
+			}
+
+			agent.createConnection = agent[kCacheableLookupData];
+
+			delete agent[kCacheableLookupData];
+			delete agent[kCacheableLookupInstance];
+		}
+	}
+
+	updateInterfaceInfo() {
+		this._iface = getIfaceInfo();
+	}
 }
 
-function fetchWrapper(requestOptions) {
-  if (isPlainObject(requestOptions.body) || Array.isArray(requestOptions.body)) {
-    requestOptions.body = JSON.stringify(requestOptions.body);
-  }
-
-  let headers = {};
-  let status;
-  let url;
-  const fetch = requestOptions.request && requestOptions.request.fetch || nodeFetch;
-  return fetch(requestOptions.url, Object.assign({
-    method: requestOptions.method,
-    body: requestOptions.body,
-    headers: requestOptions.headers,
-    redirect: requestOptions.redirect
-  }, requestOptions.request)).then(response => {
-    url = response.url;
-    status = response.status;
-
-    for (const keyAndValue of response.headers) {
-      headers[keyAndValue[0]] = keyAndValue[1];
-    }
-
-    if (status === 204 || status === 205) {
-      return;
-    } // GitHub API returns 200 for HEAD requests
-
-
-    if (requestOptions.method === "HEAD") {
-      if (status < 400) {
-        return;
-      }
-
-      throw new requestError.RequestError(response.statusText, status, {
-        headers,
-        request: requestOptions
-      });
-    }
-
-    if (status === 304) {
-      throw new requestError.RequestError("Not modified", status, {
-        headers,
-        request: requestOptions
-      });
-    }
-
-    if (status >= 400) {
-      return response.text().then(message => {
-        const error = new requestError.RequestError(message, status, {
-          headers,
-          request: requestOptions
-        });
-
-        try {
-          let responseBody = JSON.parse(error.message);
-          Object.assign(error, responseBody);
-          let errors = responseBody.errors; // Assumption `errors` would always be in Array format
-
-          error.message = error.message + ": " + errors.map(JSON.stringify).join(", ");
-        } catch (e) {// ignore, see octokit/rest.js#684
-        }
-
-        throw error;
-      });
-    }
-
-    const contentType = response.headers.get("content-type");
-
-    if (/application\/json/.test(contentType)) {
-      return response.json();
-    }
-
-    if (!contentType || /^text\/|charset=utf-8$/.test(contentType)) {
-      return response.text();
-    }
-
-    return getBufferResponse(response);
-  }).then(data => {
-    return {
-      status,
-      url,
-      headers,
-      data
-    };
-  }).catch(error => {
-    if (error instanceof requestError.RequestError) {
-      throw error;
-    }
-
-    throw new requestError.RequestError(error.message, 500, {
-      headers,
-      request: requestOptions
-    });
-  });
-}
-
-function withDefaults(oldEndpoint, newDefaults) {
-  const endpoint = oldEndpoint.defaults(newDefaults);
-
-  const newApi = function (route, parameters) {
-    const endpointOptions = endpoint.merge(route, parameters);
-
-    if (!endpointOptions.request || !endpointOptions.request.hook) {
-      return fetchWrapper(endpoint.parse(endpointOptions));
-    }
-
-    const request = (route, parameters) => {
-      return fetchWrapper(endpoint.parse(endpoint.merge(route, parameters)));
-    };
-
-    Object.assign(request, {
-      endpoint,
-      defaults: withDefaults.bind(null, endpoint)
-    });
-    return endpointOptions.request.hook(request, endpointOptions);
-  };
-
-  return Object.assign(newApi, {
-    endpoint,
-    defaults: withDefaults.bind(null, endpoint)
-  });
-}
-
-const request = withDefaults(endpoint.endpoint, {
-  headers: {
-    "user-agent": `octokit-request.js/${VERSION} ${universalUserAgent.getUserAgent()}`
-  }
-});
-
-exports.request = request;
-//# sourceMappingURL=index.js.map
+module.exports = CacheableLookup;
+module.exports.default = CacheableLookup;
 
 
 /***/ }),
@@ -14457,7 +14869,7 @@ exports.suppressSensitiveInformation = (str, action) => {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const tls_1 = __webpack_require__(16);
+const tls_1 = __webpack_require__(818);
 const deferToConnect = (socket, fn) => {
     let listeners;
     if (typeof fn === 'function') {
@@ -14744,58 +15156,9 @@ module.exports = /^#!.*/;
 /***/ }),
 
 /***/ 818:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-module.exports = isexe
-isexe.sync = sync
-
-var fs = __webpack_require__(747)
-
-function checkPathExt (path, options) {
-  var pathext = options.pathExt !== undefined ?
-    options.pathExt : process.env.PATHEXT
-
-  if (!pathext) {
-    return true
-  }
-
-  pathext = pathext.split(';')
-  if (pathext.indexOf('') !== -1) {
-    return true
-  }
-  for (var i = 0; i < pathext.length; i++) {
-    var p = pathext[i].toLowerCase()
-    if (p && path.substr(-p.length).toLowerCase() === p) {
-      return true
-    }
-  }
-  return false
-}
-
-function checkStat (stat, path, options) {
-  if (!stat.isSymbolicLink() && !stat.isFile()) {
-    return false
-  }
-  return checkPathExt(path, options)
-}
-
-function isexe (path, options, cb) {
-  fs.stat(path, function (er, stat) {
-    cb(er, er ? false : checkStat(stat, path, options))
-  })
-}
-
-function sync (path, options) {
-  return checkStat(fs.statSync(path), path, options)
-}
-
-
-/***/ }),
-
-/***/ 819:
 /***/ (function(module) {
 
-module.exports = require("dns");
+module.exports = require("tls");
 
 /***/ }),
 
@@ -29041,9 +29404,91 @@ function registerPlugin(plugins, pluginFunction) {
 /***/ }),
 
 /***/ 856:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-module.exports = __webpack_require__(141);
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const url_1 = __webpack_require__(835);
+function validateSearchParams(searchParams) {
+    for (const value of Object.values(searchParams)) {
+        if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean' && value !== null) {
+            throw new TypeError(`The \`searchParams\` value '${String(value)}' must be a string, number, boolean or null`);
+        }
+    }
+}
+const keys = [
+    'protocol',
+    'username',
+    'password',
+    'host',
+    'hostname',
+    'port',
+    'pathname',
+    'search',
+    'hash'
+];
+exports.default = (options) => {
+    var _a, _b;
+    let origin;
+    if (options.path) {
+        if (options.pathname) {
+            throw new TypeError('Parameters `path` and `pathname` are mutually exclusive.');
+        }
+        if (options.search) {
+            throw new TypeError('Parameters `path` and `search` are mutually exclusive.');
+        }
+        if (options.searchParams) {
+            throw new TypeError('Parameters `path` and `searchParams` are mutually exclusive.');
+        }
+    }
+    if (Reflect.has(options, 'auth')) {
+        throw new TypeError('Parameter `auth` is deprecated. Use `username` / `password` instead.');
+    }
+    if (options.search && options.searchParams) {
+        throw new TypeError('Parameters `search` and `searchParams` are mutually exclusive.');
+    }
+    if (options.href) {
+        return new url_1.URL(options.href);
+    }
+    if (options.origin) {
+        origin = options.origin;
+    }
+    else {
+        if (!options.protocol) {
+            throw new TypeError('No URL protocol specified');
+        }
+        origin = `${options.protocol}//${_b = (_a = options.hostname, (_a !== null && _a !== void 0 ? _a : options.host)), (_b !== null && _b !== void 0 ? _b : '')}`;
+    }
+    const url = new url_1.URL(origin);
+    if (options.path) {
+        const searchIndex = options.path.indexOf('?');
+        if (searchIndex === -1) {
+            options.pathname = options.path;
+        }
+        else {
+            options.pathname = options.path.slice(0, searchIndex);
+            options.search = options.path.slice(searchIndex + 1);
+        }
+    }
+    if (Reflect.has(options, 'path')) {
+        delete options.path;
+    }
+    for (const key of keys) {
+        if (Reflect.has(options, key)) {
+            url[key] = options[key].toString();
+        }
+    }
+    if (options.searchParams) {
+        if (typeof options.searchParams !== 'string' && !(options.searchParams instanceof url_1.URLSearchParams)) {
+            validateSearchParams(options.searchParams);
+        }
+        (new url_1.URLSearchParams(options.searchParams)).forEach((value, key) => {
+            url.searchParams.append(key, value);
+        });
+    }
+    return url;
+};
 
 
 /***/ }),
@@ -29204,11 +29649,11 @@ const calculate_retry_delay_1 = __webpack_require__(678);
 const errors_1 = __webpack_require__(378);
 const get_response_1 = __webpack_require__(234);
 const normalize_arguments_1 = __webpack_require__(110);
-const progress_1 = __webpack_require__(662);
-const timed_out_1 = __webpack_require__(668);
+const progress_1 = __webpack_require__(489);
+const timed_out_1 = __webpack_require__(215);
 const types_1 = __webpack_require__(839);
 const url_to_options_1 = __webpack_require__(278);
-const pEvent = __webpack_require__(112);
+const pEvent = __webpack_require__(148);
 const setImmediateAsync = async () => new Promise(resolve => setImmediate(resolve));
 const pipeline = util_1.promisify(stream.pipeline);
 const redirectCodes = new Set([300, 301, 302, 303, 304, 307, 308]);
@@ -29480,67 +29925,7 @@ exports.proxyEvents = (proxy, emitter) => {
 /***/ 881:
 /***/ (function(module) {
 
-"use strict";
-
-
-const isWin = process.platform === 'win32';
-
-function notFoundError(original, syscall) {
-    return Object.assign(new Error(`${syscall} ${original.command} ENOENT`), {
-        code: 'ENOENT',
-        errno: 'ENOENT',
-        syscall: `${syscall} ${original.command}`,
-        path: original.command,
-        spawnargs: original.args,
-    });
-}
-
-function hookChildProcess(cp, parsed) {
-    if (!isWin) {
-        return;
-    }
-
-    const originalEmit = cp.emit;
-
-    cp.emit = function (name, arg1) {
-        // If emitting "exit" event and exit code is 1, we need to check if
-        // the command exists and emit an "error" instead
-        // See https://github.com/IndigoUnited/node-cross-spawn/issues/16
-        if (name === 'exit') {
-            const err = verifyENOENT(arg1, parsed, 'spawn');
-
-            if (err) {
-                return originalEmit.call(cp, 'error', err);
-            }
-        }
-
-        return originalEmit.apply(cp, arguments); // eslint-disable-line prefer-rest-params
-    };
-}
-
-function verifyENOENT(status, parsed) {
-    if (isWin && status === 1 && !parsed.file) {
-        return notFoundError(parsed.original, 'spawn');
-    }
-
-    return null;
-}
-
-function verifyENOENTSync(status, parsed) {
-    if (isWin && status === 1 && !parsed.file) {
-        return notFoundError(parsed.original, 'spawnSync');
-    }
-
-    return null;
-}
-
-module.exports = {
-    hookChildProcess,
-    verifyENOENT,
-    verifyENOENTSync,
-    notFoundError,
-};
-
+module.exports = require("dns");
 
 /***/ }),
 
@@ -30549,7 +30934,7 @@ module.exports = set;
 
 Object.defineProperty(exports, '__esModule', { value: true });
 
-var request = __webpack_require__(753);
+var request = __webpack_require__(317);
 var universalUserAgent = __webpack_require__(796);
 
 const VERSION = "4.3.1";
@@ -30630,165 +31015,6 @@ function withCustomRequest(customRequest) {
 exports.graphql = graphql$1;
 exports.withCustomRequest = withCustomRequest;
 //# sourceMappingURL=index.js.map
-
-
-/***/ }),
-
-/***/ 903:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const is_1 = __webpack_require__(534);
-const as_promise_1 = __webpack_require__(616);
-const as_stream_1 = __webpack_require__(379);
-const errors = __webpack_require__(378);
-const normalize_arguments_1 = __webpack_require__(110);
-const deep_freeze_1 = __webpack_require__(291);
-const getPromiseOrStream = (options) => options.isStream ? as_stream_1.default(options) : as_promise_1.default(options);
-const isGotInstance = (value) => (Reflect.has(value, 'defaults') && Reflect.has(value.defaults, 'options'));
-const aliases = [
-    'get',
-    'post',
-    'put',
-    'patch',
-    'head',
-    'delete'
-];
-exports.defaultHandler = (options, next) => next(options);
-const create = (defaults) => {
-    // Proxy properties from next handlers
-    defaults._rawHandlers = defaults.handlers;
-    defaults.handlers = defaults.handlers.map(fn => ((options, next) => {
-        // This will be assigned by assigning result
-        let root;
-        const result = fn(options, newOptions => {
-            root = next(newOptions);
-            return root;
-        });
-        if (result !== root && !options.isStream && root) {
-            const typedResult = result;
-            const { then: promiseThen, catch: promiseCatch, finally: promiseFianlly } = typedResult;
-            Object.setPrototypeOf(typedResult, Object.getPrototypeOf(root));
-            Object.defineProperties(typedResult, Object.getOwnPropertyDescriptors(root));
-            // These should point to the new promise
-            // eslint-disable-next-line promise/prefer-await-to-then
-            typedResult.then = promiseThen;
-            typedResult.catch = promiseCatch;
-            typedResult.finally = promiseFianlly;
-        }
-        return result;
-    }));
-    // @ts-ignore Because the for loop handles it for us, as well as the other Object.defines
-    const got = (url, options) => {
-        var _a;
-        let iteration = 0;
-        const iterateHandlers = (newOptions) => {
-            return defaults.handlers[iteration++](newOptions, iteration === defaults.handlers.length ? getPromiseOrStream : iterateHandlers);
-        };
-        /* eslint-disable @typescript-eslint/return-await */
-        try {
-            return iterateHandlers(normalize_arguments_1.normalizeArguments(url, options, defaults));
-        }
-        catch (error) {
-            if ((_a = options) === null || _a === void 0 ? void 0 : _a.isStream) {
-                throw error;
-            }
-            else {
-                // @ts-ignore It's an Error not a response, but TS thinks it's calling .resolve
-                return as_promise_1.createRejection(error);
-            }
-        }
-        /* eslint-enable @typescript-eslint/return-await */
-    };
-    got.extend = (...instancesOrOptions) => {
-        const optionsArray = [defaults.options];
-        let handlers = [...defaults._rawHandlers];
-        let isMutableDefaults;
-        for (const value of instancesOrOptions) {
-            if (isGotInstance(value)) {
-                optionsArray.push(value.defaults.options);
-                handlers.push(...value.defaults._rawHandlers);
-                isMutableDefaults = value.defaults.mutableDefaults;
-            }
-            else {
-                optionsArray.push(value);
-                if (Reflect.has(value, 'handlers')) {
-                    handlers.push(...value.handlers);
-                }
-                isMutableDefaults = value.mutableDefaults;
-            }
-        }
-        handlers = handlers.filter(handler => handler !== exports.defaultHandler);
-        if (handlers.length === 0) {
-            handlers.push(exports.defaultHandler);
-        }
-        return create({
-            options: normalize_arguments_1.mergeOptions(...optionsArray),
-            handlers,
-            mutableDefaults: Boolean(isMutableDefaults)
-        });
-    };
-    // @ts-ignore The missing methods because the for-loop handles it for us
-    got.stream = (url, options) => got(url, { ...options, isStream: true });
-    for (const method of aliases) {
-        // @ts-ignore Cannot properly type a function with multiple definitions yet
-        got[method] = (url, options) => got(url, { ...options, method });
-        got.stream[method] = (url, options) => got.stream(url, { ...options, method });
-    }
-    // @ts-ignore The missing property is added below
-    got.paginate = async function* (url, options) {
-        let normalizedOptions = normalize_arguments_1.normalizeArguments(url, options, defaults);
-        const pagination = normalizedOptions._pagination;
-        if (!is_1.default.object(pagination)) {
-            throw new Error('`options._pagination` must be implemented');
-        }
-        const all = [];
-        while (true) {
-            // @ts-ignore See https://github.com/sindresorhus/got/issues/954
-            // eslint-disable-next-line no-await-in-loop
-            const result = await got(normalizedOptions);
-            // eslint-disable-next-line no-await-in-loop
-            const parsed = await pagination.transform(result);
-            for (const item of parsed) {
-                if (pagination.filter(item, all)) {
-                    if (!pagination.shouldContinue(item, all)) {
-                        return;
-                    }
-                    yield item;
-                    all.push(item);
-                    if (all.length === pagination.countLimit) {
-                        return;
-                    }
-                }
-            }
-            const optionsToMerge = pagination.paginate(result);
-            if (optionsToMerge === false) {
-                return;
-            }
-            if (optionsToMerge !== undefined) {
-                normalizedOptions = normalize_arguments_1.normalizeArguments(normalizedOptions, optionsToMerge);
-            }
-        }
-    };
-    got.paginate.all = async (url, options) => {
-        const results = [];
-        for await (const item of got.paginate(url, options)) {
-            results.push(item);
-        }
-        return results;
-    };
-    Object.assign(got, { ...errors, mergeOptions: normalize_arguments_1.mergeOptions });
-    Object.defineProperty(got, 'defaults', {
-        value: defaults.mutableDefaults ? defaults : deep_freeze_1.default(defaults),
-        writable: defaults.mutableDefaults,
-        configurable: defaults.mutableDefaults,
-        enumerable: true
-    });
-    return got;
-};
-exports.default = create;
 
 
 /***/ }),
@@ -31057,7 +31283,7 @@ function hasNextPage (link) {
 const EventEmitter = __webpack_require__(614);
 const urlLib = __webpack_require__(835);
 const normalizeUrl = __webpack_require__(53);
-const getStream = __webpack_require__(997);
+const getStream = __webpack_require__(16);
 const CachePolicy = __webpack_require__(154);
 const Response = __webpack_require__(93);
 const lowercaseKeys = __webpack_require__(474);
@@ -31452,7 +31678,7 @@ const childProcess = __webpack_require__(129);
 const crossSpawn = __webpack_require__(20);
 const stripEof = __webpack_require__(768);
 const npmRunPath = __webpack_require__(621);
-const isStream = __webpack_require__(323);
+const isStream = __webpack_require__(207);
 const _getStream = __webpack_require__(145);
 const pFinally = __webpack_require__(697);
 const onExit = __webpack_require__(260);
@@ -31811,6 +32037,20 @@ module.exports.shellSync = (cmd, opts) => handleShell(module.exports.sync, cmd, 
 
 /***/ }),
 
+/***/ 961:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = paginatePlugin;
+
+const { paginateRest } = __webpack_require__(299);
+
+function paginatePlugin(octokit) {
+  Object.assign(octokit, paginateRest(octokit));
+}
+
+
+/***/ }),
+
 /***/ 966:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -31870,145 +32110,6 @@ module.exports = options => {
 
 /***/ }),
 
-/***/ 969:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-var wrappy = __webpack_require__(11)
-module.exports = wrappy(once)
-module.exports.strict = wrappy(onceStrict)
-
-once.proto = once(function () {
-  Object.defineProperty(Function.prototype, 'once', {
-    value: function () {
-      return once(this)
-    },
-    configurable: true
-  })
-
-  Object.defineProperty(Function.prototype, 'onceStrict', {
-    value: function () {
-      return onceStrict(this)
-    },
-    configurable: true
-  })
-})
-
-function once (fn) {
-  var f = function () {
-    if (f.called) return f.value
-    f.called = true
-    return f.value = fn.apply(this, arguments)
-  }
-  f.called = false
-  return f
-}
-
-function onceStrict (fn) {
-  var f = function () {
-    if (f.called)
-      throw new Error(f.onceError)
-    f.called = true
-    return f.value = fn.apply(this, arguments)
-  }
-  var name = fn.name || 'Function wrapped with `once`'
-  f.onceError = name + " shouldn't be called more than once"
-  f.called = false
-  return f
-}
-
-
-/***/ }),
-
-/***/ 980:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const url_1 = __webpack_require__(835);
-function validateSearchParams(searchParams) {
-    for (const value of Object.values(searchParams)) {
-        if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean' && value !== null) {
-            throw new TypeError(`The \`searchParams\` value '${String(value)}' must be a string, number, boolean or null`);
-        }
-    }
-}
-const keys = [
-    'protocol',
-    'username',
-    'password',
-    'host',
-    'hostname',
-    'port',
-    'pathname',
-    'search',
-    'hash'
-];
-exports.default = (options) => {
-    var _a, _b;
-    let origin;
-    if (options.path) {
-        if (options.pathname) {
-            throw new TypeError('Parameters `path` and `pathname` are mutually exclusive.');
-        }
-        if (options.search) {
-            throw new TypeError('Parameters `path` and `search` are mutually exclusive.');
-        }
-        if (options.searchParams) {
-            throw new TypeError('Parameters `path` and `searchParams` are mutually exclusive.');
-        }
-    }
-    if (Reflect.has(options, 'auth')) {
-        throw new TypeError('Parameter `auth` is deprecated. Use `username` / `password` instead.');
-    }
-    if (options.search && options.searchParams) {
-        throw new TypeError('Parameters `search` and `searchParams` are mutually exclusive.');
-    }
-    if (options.href) {
-        return new url_1.URL(options.href);
-    }
-    if (options.origin) {
-        origin = options.origin;
-    }
-    else {
-        if (!options.protocol) {
-            throw new TypeError('No URL protocol specified');
-        }
-        origin = `${options.protocol}//${_b = (_a = options.hostname, (_a !== null && _a !== void 0 ? _a : options.host)), (_b !== null && _b !== void 0 ? _b : '')}`;
-    }
-    const url = new url_1.URL(origin);
-    if (options.path) {
-        const searchIndex = options.path.indexOf('?');
-        if (searchIndex === -1) {
-            options.pathname = options.path;
-        }
-        else {
-            options.pathname = options.path.slice(0, searchIndex);
-            options.search = options.path.slice(searchIndex + 1);
-        }
-    }
-    if (Reflect.has(options, 'path')) {
-        delete options.path;
-    }
-    for (const key of keys) {
-        if (Reflect.has(options, key)) {
-            url[key] = options[key].toString();
-        }
-    }
-    if (options.searchParams) {
-        if (typeof options.searchParams !== 'string' && !(options.searchParams instanceof url_1.URLSearchParams)) {
-            validateSearchParams(options.searchParams);
-        }
-        (new url_1.URLSearchParams(options.searchParams)).forEach((value, key) => {
-            url.searchParams.append(key, value);
-        });
-    }
-    return url;
-};
-
-
-/***/ }),
-
 /***/ 986:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -32050,6 +32151,14 @@ function exec(commandLine, args, options) {
 }
 exports.exec = exec;
 //# sourceMappingURL=exec.js.map
+
+/***/ }),
+
+/***/ 988:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = __webpack_require__(141);
+
 
 /***/ }),
 
@@ -32174,72 +32283,6 @@ exports.DEFAULT_INDEX_HTML = String.raw `<!DOCTYPE html>
   </body>
 </html>
 `;
-
-
-/***/ }),
-
-/***/ 997:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-const pump = __webpack_require__(453);
-const bufferStream = __webpack_require__(375);
-
-class MaxBufferError extends Error {
-	constructor() {
-		super('maxBuffer exceeded');
-		this.name = 'MaxBufferError';
-	}
-}
-
-async function getStream(inputStream, options) {
-	if (!inputStream) {
-		return Promise.reject(new Error('Expected a stream'));
-	}
-
-	options = {
-		maxBuffer: Infinity,
-		...options
-	};
-
-	const {maxBuffer} = options;
-
-	let stream;
-	await new Promise((resolve, reject) => {
-		const rejectPromise = error => {
-			if (error) { // A null check
-				error.bufferedData = stream.getBufferedValue();
-			}
-
-			reject(error);
-		};
-
-		stream = pump(inputStream, bufferStream(options), error => {
-			if (error) {
-				rejectPromise(error);
-				return;
-			}
-
-			resolve();
-		});
-
-		stream.on('data', () => {
-			if (stream.getBufferedLength() > maxBuffer) {
-				rejectPromise(new MaxBufferError());
-			}
-		});
-	});
-
-	return stream.getBufferedValue();
-}
-
-module.exports = getStream;
-// TODO: Remove this for the next major release
-module.exports.default = getStream;
-module.exports.buffer = (stream, options) => getStream(stream, {...options, encoding: 'buffer'});
-module.exports.array = (stream, options) => getStream(stream, {...options, array: true});
-module.exports.MaxBufferError = MaxBufferError;
 
 
 /***/ })
