@@ -100,6 +100,9 @@ export const DEFAULT_INDEX_HTML = String.raw`<!DOCTYPE html>
               enabled: false
             }
           },
+          dataLabels: {
+            enabled: false
+          },
           series: data.entries,
           xaxis: {
             type: 'datetime'
