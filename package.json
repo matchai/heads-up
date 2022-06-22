@@ -15,7 +15,7 @@
   "dependencies": {
     "@actions/core": "^1.2.3",
     "github-pages-deploy-action": "^3.3.2",
-    "got": "^10.6.0"
+    "got": "^11.8.5"
   },
   "devDependencies": {
     "@types/jest": "^24.0.23",
